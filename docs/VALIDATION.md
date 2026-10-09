@@ -55,7 +55,8 @@ the draft must be reviewed/saved and published in environment settings. Saving a
 - Size: 885,600 bytes (about 865 KiB)
 - SHA-256: `c2b98607e85ed7ff56ad7f80961b311d9449ac65d89c752b3ba331ff287811d4`
 - Android 8.0+; debug signed; package `dev.raabta.keyboard`; version `0.1.0`.
-- Generated artifacts and signing keys were not committed to Git.
+- A matching copy of the tested APK was published on the separate `apk-phase-1-0.1.0` download branch as a one-time fallback for blocked Actions API access. The source branch still excludes generated binaries; signing keys were never committed.
+- Direct download: https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-phase-1-0.1.0/raabta-keyboard-debug.apk (requires repository access when private).
 
 ## Real phone gate
 

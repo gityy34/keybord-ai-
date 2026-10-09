@@ -6,7 +6,7 @@ Android **8.0 or newer** is required.
 
 ## Install and start typing
 
-1. Download the `raabta-keyboard-debug` APK supplied with this delivery, or obtain it from GitHub Actions below.
+1. [Download the phase-one APK directly](https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-phase-1-0.1.0/raabta-keyboard-debug.apk), or obtain it from GitHub Actions below. Sign in to GitHub first if the repository is private.
 2. Open the APK on your Android phone. If Android asks, allow your browser/file manager to install this app.
 3. Open **Raabta Keyboard**.
 4. Tap **1 · Enable Raabta**, find **Raabta Keyboard**, and turn it on. Android displays its standard keyboard-access warning. Menu names vary by manufacturer.
@@ -34,7 +34,9 @@ After these files are pushed to this repository:
 The workflow runs on pushes, pull requests, and manual dispatch. It installs Java 17 and Android SDK 35,
 runs unit/service tests and Android lint, builds a debug APK, and uploads the APK and validation reports.
 Actions versions were checked against their current official documentation during implementation.
-Source code and the Gradle wrapper are tracked; APKs, caches, SDKs, signing keys, and local config are ignored.
+Source code and the Gradle wrapper are tracked; APKs, caches, SDKs, signing keys, and local config are ignored in the development branch.
+The separate `apk-phase-1-0.1.0` branch contains one tested APK as a direct-download fallback while cloud access to
+the Actions API is blocked. Future builds should use Actions artifacts or release assets.
 
 Debug builds made on different machines may use different signing keys. If an update says “App not installed”,
 uninstall the older debug build, install the new APK, and enable/select the keyboard again.
