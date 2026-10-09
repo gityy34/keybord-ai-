@@ -11,7 +11,7 @@ It remains the source of requirements. The first delivery deliberately covers ph
 | 3 | Urdu Unicode layout, Roman Urdu, language switch, modest local suggestions | Correct text/cursor behavior in all three modes |
 | 4 | Emoji, explicit clipboard access, suggestion strip, shortcuts | Privacy and Unicode regression checks |
 | 5 | On-demand AI toolbar; interchangeable provider layer; loading, cancel, timeout/quota errors | Provider/free-tier limits reverified at implementation time; asynchronous actions; typing stays local and responsive |
-| 6 | Device speech recognition; language-aware voice; on-device translation where supported | Permissions/failures tested; current supported translation language pairs verified |
+| 6 | Device speech recognition; language-aware voice; on-device translation where supported | Voice implemented early at user request in 0.1.1; automated checks passed, phone dictation pending; translation remains pending |
 | 7 | Private mode, sensitive-field controls, API configuration, clear-data controls | Password and sensitive-field tests; no secret/text logging; explicit upload consent |
 | 8 | End-to-end performance, app compatibility, offline/failure scenarios | Repeated real-phone testing in messaging, mail, search, notes, and other apps |
 
@@ -27,6 +27,8 @@ These do not replace the later privacy-hardening phase.
 - `EditorCommands` is the only text-editing path, using the current `InputConnection`.
 - `EditorPolicy` maps field types and Android editor actions.
 - `SetupActivity` helps users enable/select the IME and supplies disposable test fields.
+- `VoiceController` owns cancellable speech sessions with timeouts and rejects late callbacks; `DeviceSpeechEngine` adapts Android speech recognition. Permission is requested through a separate activity and never starts recording automatically.
+- Voice language preferences store only the selected language. Recognized text passes directly to the current connection; passwords/private/non-text fields block voice. A system recognizer may process audio online when on-device recognition is unavailable.
 - No background service apart from Android's managed IME; no account, backend, AI SDK, or paid service.
 - Future AI adapters will live separately from keyboard editing. They must never execute for ordinary keystrokes.
 
@@ -49,3 +51,12 @@ host-app matrix, or per-scenario results.
 
 Emulator and JVM results cannot establish real-phone compatibility or daily-use stability.
 Preserve the distinction between user-reported basic acceptance and unreported extended scenarios.
+
+## Voice milestone requested after phase 1
+
+Version 0.1.1 adds a microphone, Stop/Cancel, English/Urdu dictation settings, permission handling,
+service/error/timeout handling, and editor-lifecycle protections. All 31 tests passed, including the
+original typing regression suite, and lint/build/signature checks passed. This milestone advances the
+voice portion of phase 6; UI refinement, Urdu key layouts, AI, and translation remain pending.
+Actual audio recognition and service/language availability need phone verification using
+[VOICE_VALIDATION.md](VOICE_VALIDATION.md).

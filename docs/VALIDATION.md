@@ -1,5 +1,8 @@
 # Phase 0 / phase 1 validation
 
+This records the original 0.1.0 delivery. The subsequent user-requested 0.1.1 voice update is recorded
+separately in [VOICE_VALIDATION.md](VOICE_VALIDATION.md).
+
 ## Repository inspection
 
 - Initial HEAD: `77cb3de59b15b26ecb0ef4488bf4c99626b7b709` (initial commit).

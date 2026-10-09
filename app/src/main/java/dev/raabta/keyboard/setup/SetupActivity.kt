@@ -17,11 +17,15 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import dev.raabta.keyboard.R
 import dev.raabta.keyboard.ime.RaabtaInputMethodService
 import dev.raabta.keyboard.ui.Palette
 import dev.raabta.keyboard.ui.dp
 import dev.raabta.keyboard.ui.rounded
+import dev.raabta.keyboard.voice.VoiceSettings
+import dev.raabta.keyboard.voice.VoicePermissionActivity
 
 class SetupActivity : Activity() {
     private lateinit var status: TextView
@@ -77,6 +81,21 @@ class SetupActivity : Activity() {
         content.addView(testField(R.id.test_password, R.string.password_hint,
             InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_DONE))
         content.addView(label(getString(R.string.typing_help), 14f, palette.muted).apply { setPadding(0, dp(14), 0, dp(24)) })
+        content.addView(label(getString(R.string.voice_title), 20f, palette.text))
+        val languages = RadioGroup(this)
+        for ((language, title) in listOf(VoiceSettings.ENGLISH to R.string.voice_language_english, VoiceSettings.URDU to R.string.voice_language_urdu)) {
+            languages.addView(RadioButton(this).apply {
+                id = View.generateViewId()
+                setText(title)
+                setTextColor(palette.text)
+                isChecked = VoiceSettings.language(this@SetupActivity) == language
+                setOnCheckedChangeListener { _, checked -> if (checked) VoiceSettings.setLanguage(this@SetupActivity, language) }
+            })
+        }
+        content.addView(languages)
+        content.addView(label(getString(R.string.voice_privacy), 14f, palette.muted).apply { setPadding(0, dp(8), 0, dp(12)) })
+        content.addView(action(R.string.voice_allow) { startActivity(Intent(this, VoicePermissionActivity::class.java)) })
+        content.addView(label("", 14f, palette.muted).apply { setPadding(0, dp(12), 0, 0) })
         content.addView(label(getString(R.string.privacy_title), 20f, palette.text))
         content.addView(label(getString(R.string.privacy_description), 14f, palette.muted).apply { setPadding(0, dp(8), 0, dp(20)) })
         content.addView(label(getString(R.string.version_label), 12f, palette.muted))
@@ -119,7 +138,8 @@ class SetupActivity : Activity() {
     private fun testField(viewId: Int, hintId: Int, type: Int, action: Int, multiline: Boolean = false) = EditText(this).apply {
         id = viewId
         inputType = type
-        imeOptions = action or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        // Keep a normal text field for voice testing; password/non-text fields remain blocked by the IME.
+        imeOptions = action
         setHint(hintId)
         textSize = 17f
         setTextColor(palette.text)

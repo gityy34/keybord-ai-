@@ -1,6 +1,7 @@
 package dev.raabta.keyboard.ime
 
 import android.os.Looper
+import android.Manifest
 import android.text.Editable
 import android.text.InputType
 import android.view.KeyEvent
@@ -18,6 +19,8 @@ import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.util.ReflectionHelpers
+import org.robolectric.RuntimeEnvironment
+import dev.raabta.keyboard.voice.*
 import java.time.Duration
 
 @RunWith(org.robolectric.RobolectricTestRunner::class)
@@ -160,6 +163,88 @@ class KeyboardServiceTest {
     @Test fun noConnectionDoesNotCrashAnyTypingCommand() {
         ReflectionHelpers.setField(service, "mStartedInputConnection", null)
         type("abc "); press("Enter"); press("Delete")
+        assertEquals("", editor.text.toString())
+    }
+
+    private class Speech(val listener: SpeechEngine.Listener) : SpeechEngine {
+        var cancelled = false
+        var destroyed = false
+        var stopped = false
+        override fun start(language: String) = Unit
+        override fun stop() { stopped = true }
+        override fun cancel() { cancelled = true }
+        override fun destroy() { destroyed = true }
+    }
+
+    private fun startVoice(): Speech {
+        shadowOf(RuntimeEnvironment.getApplication()).grantPermissions(Manifest.permission.RECORD_AUDIO)
+        lateinit var engine: Speech
+        service.speechEngineFactory = SpeechEngineFactory { Speech(it).also { speech -> engine = speech } }
+        press("Voice")
+        return engine
+    }
+
+    @Test fun voiceFinalResultReplacesSelectionOnce() {
+        connection.commitText("hello old", 1)
+        editor.setSelection(6, 9)
+        val speech = startVoice()
+        speech.listener.result("world")
+        speech.listener.result("duplicate")
+        assertEquals("hello world", editor.text.toString())
+        assertTrue(speech.destroyed)
+    }
+
+    @Test fun ordinaryTypingCancelsVoiceAndRejectsLateText() {
+        val speech = startVoice()
+        type("a")
+        speech.listener.result("late voice")
+        assertEquals("a", editor.text.toString())
+        assertTrue(speech.cancelled)
+    }
+
+    @Test fun switchingEditorCancelsVoiceBeforeResult() {
+        val speech = startVoice()
+        startEditor(InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        speech.listener.result("private result")
+        assertEquals("", editor.text.toString())
+        assertFalse(view.findViewWithTag<View>("Voice").isEnabled)
+        type("secret")
+        assertEquals("secret", editor.text.toString())
+    }
+
+    @Test fun movingCursorCancelsVoiceAndRejectsLateResult() {
+        val speech = startVoice()
+        service.onUpdateSelection(0, 0, 1, 1, -1, -1)
+        speech.listener.result("late")
+        assertEquals("", editor.text.toString())
+        assertTrue(speech.destroyed)
+    }
+
+    @Test fun cancelAndHideStopRecordingWithoutInsertion() {
+        val first = startVoice()
+        press("CancelVoice")
+        first.listener.result("cancelled")
+        val second = startVoice()
+        service.onFinishInputView(true)
+        second.listener.result("hidden")
+        assertEquals("", editor.text.toString())
+        assertTrue(second.destroyed)
+    }
+
+    @Test fun microphoneStopsListeningAndInsertsFinalResult() {
+        val speech = startVoice()
+        press("Voice")
+        assertTrue(speech.stopped)
+        speech.listener.result("dictated text")
+        assertEquals("dictated text", editor.text.toString())
+    }
+
+    @Test fun missingPermissionOpensPermissionScreenWithoutStartingRecording() {
+        shadowOf(RuntimeEnvironment.getApplication()).denyPermissions(Manifest.permission.RECORD_AUDIO)
+        service.speechEngineFactory = SpeechEngineFactory { fail("Recording must not start"); throw AssertionError() }
+        press("Voice")
+        val intent = shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity
+        assertEquals(VoicePermissionActivity::class.java.name, intent.component!!.className)
         assertEquals("", editor.text.toString())
     }
 }

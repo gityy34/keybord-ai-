@@ -13,6 +13,7 @@ import dev.raabta.keyboard.R
 import dev.raabta.keyboard.ui.Palette
 import dev.raabta.keyboard.ui.dp
 import dev.raabta.keyboard.ui.rounded
+import dev.raabta.keyboard.voice.VoiceState
 
 sealed interface Key {
     data class Text(val text: String) : Key
@@ -31,6 +32,8 @@ class KeyboardView @JvmOverloads constructor(
     private val onCaps: () -> Unit = {},
     private val onSettings: () -> Unit = {},
     private val onSwitch: () -> Unit = {},
+    private val onVoice: () -> Unit = {},
+    private val onCancelVoice: () -> Unit = {},
 ) : LinearLayout(context) {
     private val palette = Palette.from(context)
     private val rows = LinearLayout(context)
@@ -38,6 +41,14 @@ class KeyboardView @JvmOverloads constructor(
     private var shiftButton: Button? = null
     private var deleteButton: RepeatingDeleteButton? = null
     private var enterLabel = R.string.key_enter
+    private val title = TextView(context)
+    private val microphone = headerButton("🎙", R.string.voice_microphone, onVoice).apply { tag = "Voice" }
+    private val cancelVoice = headerButton("×", R.string.voice_cancel, onCancelVoice).apply {
+        tag = "CancelVoice"
+        visibility = View.GONE
+    }
+    private var voiceAllowed = false
+    private var voiceState = VoiceState.IDLE
 
     init {
         orientation = VERTICAL
@@ -45,17 +56,20 @@ class KeyboardView @JvmOverloads constructor(
         setBackgroundColor(palette.background)
         setPadding(context.dp(3), context.dp(3), context.dp(3), context.dp(5))
         val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
-        header.addView(TextView(context).apply {
+        header.addView(title.apply {
             setText(R.string.keyboard_title)
             textSize = 12f
             setTextColor(palette.muted)
             setPadding(context.dp(10), 0, 0, 0)
         }, LayoutParams(0, context.dp(38), 1f))
+        header.addView(cancelVoice)
+        header.addView(microphone)
         header.addView(headerButton("🌐", R.string.keyboard_switch, onSwitch))
         header.addView(headerButton("⚙", R.string.keyboard_settings, onSettings))
         addView(header)
         rows.orientation = VERTICAL
         addView(rows)
+        setVoiceState(VoiceState.IDLE)
     }
 
     private fun headerButton(label: String, description: Int, action: () -> Unit) = Button(context).apply {
@@ -187,6 +201,29 @@ class KeyboardView @JvmOverloads constructor(
 
     fun cancelRepeats() {
         deleteButton?.cancelRepeat()
+    }
+
+    fun setVoiceAllowed(allowed: Boolean) {
+        voiceAllowed = allowed
+        setVoiceState(voiceState)
+    }
+
+    fun setVoiceState(state: VoiceState) {
+        voiceState = state
+        title.setText(when (state) {
+            VoiceState.IDLE -> R.string.keyboard_title
+            VoiceState.LISTENING -> R.string.voice_listening
+            VoiceState.PROCESSING -> R.string.voice_processing
+        })
+        microphone.text = if (state == VoiceState.LISTENING) "■" else "🎙"
+        microphone.isEnabled = voiceAllowed && state != VoiceState.PROCESSING
+        microphone.alpha = if (microphone.isEnabled) 1f else 0.4f
+        microphone.contentDescription = context.getString(when {
+            !voiceAllowed -> R.string.voice_blocked
+            state == VoiceState.LISTENING -> R.string.voice_stop
+            else -> R.string.voice_microphone
+        })
+        cancelVoice.visibility = if (state == VoiceState.IDLE) View.GONE else View.VISIBLE
     }
 
     override fun onDetachedFromWindow() {

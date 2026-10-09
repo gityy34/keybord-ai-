@@ -1,12 +1,13 @@
 # Raabta Keyboard
 
-An original, offline Android keyboard built with Kotlin and Android's real input-method APIs.
-This first implementation covers **phase 0 and phase 1** of the [project requirements](docs/PROJECT_REQUIREMENTS.md).
+An original Android keyboard built with Kotlin and Android's real input-method APIs. Normal typing works offline.
+The implementation covers **phase 0 and phase 1**, plus user-requested **voice typing** ahead of phase 6,
+of the [project requirements](docs/PROJECT_REQUIREMENTS.md).
 Android **8.0 or newer** is required.
 
 ## Install and start typing
 
-1. [Download the phase-one APK directly](https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-phase-1-0.1.0/raabta-keyboard-debug.apk), or obtain it from GitHub Actions below. Sign in to GitHub first if the repository is private.
+1. [Download the voice update APK (0.1.1) directly](https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-voice-0.1.1/raabta-keyboard-voice-0.1.1.apk), or obtain it from GitHub Actions below. Sign in to GitHub first if the repository is private.
 2. Open the APK on your Android phone. If Android asks, allow your browser/file manager to install this app.
 3. Open **Raabta Keyboard**.
 4. Tap **1 · Enable Raabta**, find **Raabta Keyboard**, and turn it on. Android displays its standard keyboard-access warning. Menu names vary by manufacturer.
@@ -23,6 +24,26 @@ fast typing, switching apps, and reopening/rotating the keyboard. See the full [
 The user reported successful basic phone testing on 2026-10-09. Extended app compatibility,
 rotation, offline scenarios, and sustained daily use still need specific results.
 
+## Voice typing
+
+The 0.1.1 download uses the same debug signing certificate as the delivered 0.1.0 APK and can update it
+without uninstalling. Voice recognition on the phone still needs real-device testing.
+
+1. In Raabta setup, choose **English voice** or **Urdu voice**. This changes dictation language, not the key layout.
+2. Focus a normal text field and tap the keyboard's microphone. If permission is missing, tap **Allow microphone**,
+   grant Android's permission, return to the text field, and tap the microphone again. Permission never starts recording by itself.
+3. Speak while **Listening…** is shown. Tap **■** to stop and process, or **×** to cancel without inserting a result.
+4. Only the final recognized text is inserted. Ordinary typing, moving the cursor, hiding the keyboard,
+   or switching fields/apps cancels the session and prevents late insertion into the wrong editor.
+
+Voice is disabled in password fields, fields marked private by the host app, and non-text fields.
+Android's on-device speech recognizer is preferred where available. Otherwise the installed system speech
+service is used with an offline preference; a provider may ignore that hint and process audio online.
+English and Urdu availability depend on that service and its installed language models. Missing service,
+unsupported language, denied permission, silence, network errors, and timeouts show a message and leave typing usable.
+No typed context is sent, and the keyboard stores no recordings or transcript history.
+See [voice validation and phone checks](docs/VOICE_VALIDATION.md).
+
 ## Download future APKs from GitHub Actions
 
 After these files are pushed to this repository:
@@ -36,7 +57,7 @@ The workflow runs on pushes, pull requests, and manual dispatch. It installs Jav
 runs unit/service tests and Android lint, builds a debug APK, and uploads the APK and validation reports.
 Actions versions were checked against their current official documentation during implementation.
 Source code and the Gradle wrapper are tracked; APKs, caches, SDKs, signing keys, and local config are ignored in the development branch.
-The separate `apk-phase-1-0.1.0` branch contains one tested APK as a direct-download fallback while cloud access to
+The separate `apk-phase-1-0.1.0` and `apk-voice-0.1.1` branches contain verified APKs as direct-download fallbacks while cloud access to
 the Actions API is blocked. Future builds should use Actions artifacts or release assets.
 
 Debug builds made on different machines may use different signing keys. If an update says “App not installed”,
@@ -76,14 +97,16 @@ Each cloud task is already isolated: use the existing checkout; do not create a 
 
 ## Privacy and scope
 
-Phase 1 has **no internet permission**, API key, AI SDK, analytics, clipboard history, or permanent typing capture.
+The app has **no internet permission**, API key, AI SDK, analytics, clipboard history, or permanent typing capture.
 Typing goes directly to the active app through `InputConnection`. Passwords are typed locally like other input;
-no text is uploaded. Setup test fields are not saved and are cleared when the screen closes.
+ordinary typed text is not uploaded. Voice requests microphone permission only when explicitly requested;
+the separate phone speech service may process audio online. Setup test fields are not saved and are cleared when the screen closes.
 Android cloud backup and device transfer of app files are excluded.
 
 English QWERTY, numbers/symbols, editor actions, setup, and core typing are implemented. Basic system-aware colors
-and held Backspace are included as foundation conveniences. Urdu/Roman Urdu, prediction, emoji/clipboard,
-voice, AI, translation, theme controls, and sound/haptic settings remain in their agreed [later phases](docs/ROADMAP.md).
+and held Backspace are included as foundation conveniences. English/Urdu dictation is implemented using Android speech recognition.
+Urdu/Roman Urdu key layouts, prediction, emoji/clipboard, AI, translation, theme controls, and sound/haptic settings
+remain in their agreed [later phases](docs/ROADMAP.md).
 
 Architecture and all future requirements are documented in `docs/`. Validation evidence and known limits are in
 [VALIDATION.md](docs/VALIDATION.md).
