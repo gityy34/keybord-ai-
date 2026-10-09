@@ -1,0 +1,144 @@
+package dev.raabta.keyboard.setup
+
+import android.app.Activity
+import android.content.ComponentName
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.text.InputType
+import android.view.Gravity
+import android.view.View
+import android.view.WindowInsets
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import dev.raabta.keyboard.R
+import dev.raabta.keyboard.ime.RaabtaInputMethodService
+import dev.raabta.keyboard.ui.Palette
+import dev.raabta.keyboard.ui.dp
+import dev.raabta.keyboard.ui.rounded
+
+class SetupActivity : Activity() {
+    private lateinit var status: TextView
+    private lateinit var picker: Button
+    private val fields = mutableListOf<EditText>()
+    private lateinit var palette: Palette
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        palette = Palette.from(this)
+        val scroll = ScrollView(this).apply {
+            setBackgroundColor(palette.background)
+            isFillViewport = true
+        }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(24), dp(24), dp(28))
+        }
+        scroll.addView(content)
+        setContentView(scroll)
+        scroll.setOnApplyWindowInsetsListener { view, insets ->
+            if (Build.VERSION.SDK_INT >= 30) {
+                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            } else {
+                @Suppress("DEPRECATION")
+                view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+            }
+            insets
+        }
+        content.addView(label("RAABTA", 13f, palette.accent))
+        content.addView(label(getString(R.string.setup_title), 32f, palette.text).apply {
+            setPadding(0, dp(12), 0, dp(12))
+        })
+        content.addView(label(getString(R.string.setup_description), 16f, palette.muted))
+        status = label("", 14f, palette.accent).apply { setPadding(0, dp(20), 0, dp(12)) }
+        content.addView(status)
+        content.addView(action(R.string.enable_keyboard) {
+            startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+        })
+        content.addView(label(getString(R.string.enable_help), 13f, palette.muted).apply { setPadding(0, dp(8), 0, dp(16)) })
+        picker = action(R.string.choose_keyboard) {
+            getSystemService(InputMethodManager::class.java).showInputMethodPicker()
+        }
+        content.addView(picker)
+        content.addView(label(getString(R.string.test_heading), 22f, palette.text).apply { setPadding(0, dp(26), 0, dp(12)) })
+        content.addView(testField(R.id.test_message, R.string.test_hint,
+            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE,
+            EditorInfo.IME_ACTION_NONE, multiline = true))
+        content.addView(testField(R.id.test_search, R.string.search_hint, InputType.TYPE_CLASS_TEXT, EditorInfo.IME_ACTION_SEARCH))
+        content.addView(testField(R.id.test_number, R.string.number_hint,
+            InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED, EditorInfo.IME_ACTION_NEXT))
+        content.addView(testField(R.id.test_password, R.string.password_hint,
+            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, EditorInfo.IME_ACTION_DONE))
+        content.addView(label(getString(R.string.typing_help), 14f, palette.muted).apply { setPadding(0, dp(14), 0, dp(24)) })
+        content.addView(label(getString(R.string.privacy_title), 20f, palette.text))
+        content.addView(label(getString(R.string.privacy_description), 14f, palette.muted).apply { setPadding(0, dp(8), 0, dp(20)) })
+        content.addView(label(getString(R.string.version_label), 12f, palette.muted))
+        content.isFocusableInTouchMode = true
+        content.requestFocus()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val manager = getSystemService(InputMethodManager::class.java)
+        val component = ComponentName(this, RaabtaInputMethodService::class.java).flattenToShortString()
+        val enabled = manager.enabledInputMethodList.any { it.id == component }
+        val current = Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+        status.setText(when {
+            current == component -> R.string.active_status
+            enabled -> R.string.enabled_status
+            else -> R.string.disabled_status
+        })
+        picker.isEnabled = enabled
+        picker.alpha = if (enabled) 1f else 0.5f
+    }
+
+    private fun label(value: String, size: Float, color: Int) = TextView(this).apply {
+        text = value
+        textSize = size
+        setTextColor(color)
+    }
+
+    private fun action(title: Int, callback: () -> Unit) = Button(this).apply {
+        setText(title)
+        isAllCaps = false
+        textSize = 17f
+        gravity = Gravity.CENTER
+        setTextColor(palette.surface)
+        background = rounded(palette.accent, dp(14).toFloat())
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56))
+        setOnClickListener { callback() }
+    }
+
+    private fun testField(viewId: Int, hintId: Int, type: Int, action: Int, multiline: Boolean = false) = EditText(this).apply {
+        id = viewId
+        inputType = type
+        imeOptions = action or EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING
+        setHint(hintId)
+        textSize = 17f
+        setTextColor(palette.text)
+        setHintTextColor(palette.muted)
+        setPadding(dp(14), dp(12), dp(14), dp(12))
+        background = rounded(palette.surface, dp(12).toFloat())
+        isSaveEnabled = false
+        importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+        gravity = Gravity.TOP or Gravity.START
+        if (multiline) { minLines = 2; maxLines = 4 } else setSingleLine(true)
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(8)
+        }
+        fields.add(this)
+    }
+
+    override fun onDestroy() {
+        fields.forEach { it.text.clear() }
+        fields.clear()
+        super.onDestroy()
+    }
+}
