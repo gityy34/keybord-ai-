@@ -60,8 +60,14 @@ the draft must be reviewed/saved and published in environment settings. Saving a
 
 ## Real phone gate
 
-**Pending user testing.** Do not call phase 1 fully accepted or daily-use stable until the phone checklist
-in [ROADMAP.md](ROADMAP.md) is completed. WhatsApp/Gmail/Chrome/Instagram/Messages and real-device orientation,
-latency, and vendor-specific behavior have not been validated here.
+**Basic phone functional acceptance: passed, reported by the user on 2026-10-09.**
+After the installation/enable/select and typing-test instructions, the user reported completing the tests
+and that every tested feature works properly. This is user-reported real-device evidence, not a cloud test result.
+No immediate keyboard failure or functional issue was reported.
+
+The phone model, Android version, tested host apps, and individual results for rotation, rapid typing,
+airplane mode, numeric/password fields, and sustained daily use were not supplied. Keep those extended
+checks in [ROADMAP.md](ROADMAP.md) open rather than inventing coverage. Hosted Actions verification also
+remains open as documented above. Phase 2 can build on the accepted basic typing foundation.
 
 All later product phases remain tracked in the roadmap and original requirements.

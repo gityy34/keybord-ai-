@@ -20,7 +20,8 @@ The globe opens Android's keyboard picker; the gear opens setup. Android's Back 
 
 Test `hello world`, `Ab`, `ABC`, punctuation, numbers, deletion, and multiline Enter. Try airplane mode,
 fast typing, switching apps, and reopening/rotating the keyboard. See the full [phone acceptance checklist](docs/ROADMAP.md).
-Phone results are still required before calling this a stable daily keyboard.
+The user reported successful basic phone testing on 2026-10-09. Extended app compatibility,
+rotation, offline scenarios, and sustained daily use still need specific results.
 
 ## Download future APKs from GitHub Actions
 

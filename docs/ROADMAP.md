@@ -6,7 +6,7 @@ It remains the source of requirements. The first delivery deliberately covers ph
 | Phase | Scope | Acceptance gate |
 | --- | --- | --- |
 | 0 | Inspect existing repository, preserve existing work, identify build prerequisites | Inspection recorded; initial repository had one README and no project code |
-| 1 | Native Kotlin IME, English typing, Shift/Caps, symbols/numbers, setup, APK, CI | Tests/lint/build pass; installed IME smoke test; phone acceptance checklist |
+| 1 | Native Kotlin IME, English typing, Shift/Caps, symbols/numbers, setup, APK, CI | Tests/lint/build passed; basic phone functional tests passed per user report; extended device checks and hosted CI verification remain open |
 | 2 | UI refinement, explicit light/dark/system settings, haptics/sound controls, orientation and performance | Comfortable fast typing on the user's phone; measured regressions |
 | 3 | Urdu Unicode layout, Roman Urdu, language switch, modest local suggestions | Correct text/cursor behavior in all three modes |
 | 4 | Emoji, explicit clipboard access, suggestion strip, shortcuts | Privacy and Unicode regression checks |
@@ -30,7 +30,12 @@ These do not replace the later privacy-hardening phase.
 - No background service apart from Android's managed IME; no account, backend, AI SDK, or paid service.
 - Future AI adapters will live separately from keyboard editing. They must never execute for ordinary keystrokes.
 
-## Phase 1 phone acceptance (pending user results)
+## Phase 1 phone acceptance
+
+On 2026-10-09 the user reported completing the provided tests on their phone and that every tested
+feature works properly. Record basic functional acceptance as passed. The complete checklist below
+remains available for extended coverage; the user has not supplied a device model, Android version,
+host-app matrix, or per-scenario results.
 
 - Install and launch; enable Raabta in Android keyboard management; select it in the picker.
 - Type `hello world`, delete it, enter multiple lines, and type rapidly without dropped letters.
@@ -43,4 +48,4 @@ These do not replace the later privacy-hardening phase.
 - Report phone model, Android version, host app, reproduction steps, and observed behavior.
 
 Emulator and JVM results cannot establish real-phone compatibility or daily-use stability.
-Do not mark the phone gate passed until the user reports their results.
+Preserve the distinction between user-reported basic acceptance and unreported extended scenarios.
