@@ -32,17 +32,30 @@ The cloud machine has no `/dev/kvm`; hardware acceleration is unavailable.
 - Android IME registration and enable/select operations: **passed**.
 - Setup activity launched and displayed its test fields and selected-keyboard status: **passed**.
 - Android's input-method service reported Raabta selected and input shown after focusing the test field.
-- Full visible touch/typing validation: **pending**. The initial software emulator encountered System UI ANRs and a system-service restart (`DeadSystemException` across Android processes), interrupting UI automation. This is not recorded as a passing typing check or a proven application defect. A retry uses one CPU core and the supported direct SwiftShader renderer.
+- Full visible touch/typing validation: **blocked in this machine**. The initial software emulator encountered System UI ANRs and a system-service restart (`DeadSystemException` across Android processes), interrupting UI automation. This is not recorded as a passing typing check or a proven application defect. A retry with one CPU core, 2 GB guest RAM, and the direct SwiftShader renderer installed the final APK successfully, but the input command timed out during UI testing. Both test emulators were stopped. Complete touch/typing acceptance on the phone or a hardware-accelerated emulator.
 
 ## GitHub Actions
 
 The committed workflow reproduces the same SDK/packages and test/lint/build commands and uploads APK/checksum
 and validation reports. Its currently supported action versions were verified against official documentation and tags.
-Local success is not evidence that a hosted Actions run completed. Hosted run status and artifact availability
-will be recorded after successful publication and verification; until then they remain **unverified**.
+Source and workflow were successfully pushed to the `phase-1-keyboard` branch. Local success is not evidence
+that a hosted Actions run completed. Hosted run status and artifact availability remain **unverified**
+because the current proxy rejected the GitHub API request, and the private Actions page is unavailable
+through an unauthenticated web request. Open the repository's Actions page while logged into GitHub to
+view the latest branch run and download its artifact after success.
 
 The current cloud network policy initially excluded `api.github.com`, and the GitHub API request was rejected
-by the proxy. Existing native HTTPS Git read access worked. No credential values were extracted or requested.
+by the proxy. Existing native HTTPS Git read and push access worked. No credential values were extracted or requested.
+Reusable `install_script` and `start_skill`, plus additive `api.github.com` access, were saved in the environment draft;
+the draft must be reviewed/saved and published in environment settings. Saving alone does not apply or publish it.
+
+## Delivered APK
+
+- File: `/workspace/artifacts/raabta-keyboard-debug.apk`
+- Size: 885,600 bytes (about 865 KiB)
+- SHA-256: `c2b98607e85ed7ff56ad7f80961b311d9449ac65d89c752b3ba331ff287811d4`
+- Android 8.0+; debug signed; package `dev.raabta.keyboard`; version `0.1.0`.
+- Generated artifacts and signing keys were not committed to Git.
 
 ## Real phone gate
 
