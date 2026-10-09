@@ -38,8 +38,9 @@ class RaabtaInputMethodService : InputMethodService() {
         when (key) {
             is Key.Text -> {
                 if (EditorCommands.type(connection, state.display(key.text))) {
+                    val previousShift = state.shift
                     state.afterCharacter()
-                    keyboard?.updateShift()
+                    if (previousShift != state.shift) keyboard?.updateShift()
                 }
             }
             Key.Space -> EditorCommands.type(connection, " ")
