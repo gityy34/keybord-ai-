@@ -8,7 +8,7 @@ import android.view.ViewConfiguration
 import android.widget.Button
 
 /** One gesture owns each touch sequence; release cannot insert an accidental Space/letter. */
-class GestureKeyButton(context:Context) : androidx.appcompat.widget.AppCompatButton(context) {
+class GestureKeyButton(context:Context) : KeyButton(context) {
     var onMoveCursor: ((Int)->Unit)? = null
     var onSymbol: (()->Unit)? = null
     var onGlideMove: ((Float,Float)->Unit)? = null

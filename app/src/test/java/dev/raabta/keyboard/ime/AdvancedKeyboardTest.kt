@@ -53,14 +53,41 @@ class AdvancedKeyboardTest {
     private fun click(tag:String) { val v=view.findViewWithTag<View>(tag); assertNotNull("Missing $tag",v); assertTrue(v.performClick()) }
     private fun type(text:String) { text.forEach { click(if(it==' ') "Space" else "text:$it") } }
     private fun update() { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(60)) }
-    @Test fun settingsOpenWithinKeyboardWithoutActivityAndBackPreservesEditor() {
-        type("hello"); click("Settings")
-        assertNotNull(view.findViewWithTag<View>("SettingsPanel"))
-        assertNull(shadowOf(service).nextStartedActivity)
-        click("settings:Preferences")
-        assertNotNull(view.findViewWithTag<View>("option:cursor_slide"))
-        click("SettingsBack"); click("SettingsBack")
+    private fun fullSettings():dev.raabta.keyboard.setup.KeyboardSettingsActivity {
+        click("Settings")
+        val intent=shadowOf(service).nextStartedActivity
+        assertEquals(dev.raabta.keyboard.setup.KeyboardSettingsActivity::class.java.name,intent.component!!.className)
+        assertNull(view.findViewWithTag<View>("SettingsPanel"))
+        return Robolectric.buildActivity(dev.raabta.keyboard.setup.KeyboardSettingsActivity::class.java,intent).setup().get()
+    }
+    private fun returnToKeyboard() {
+        service.onStartInputView(EditorInfo().apply { inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE },false)
+        view=ReflectionHelpers.getField(service,"keyboard")
+    }
+    @Test fun gearOpensFullSettingsWithCategoriesAndReturningPreservesEditor() {
+        type("hello"); val settings=fullSettings()
+        settings.findViewById<View>(android.R.id.content).findViewWithTag<View>("settings:Preferences").performClick()
+        assertNotNull(settings.findViewById<View>(android.R.id.content).findViewWithTag<View>("option:cursor_slide"))
+        settings.finish(); returnToKeyboard()
         type(" world"); assertEquals("hello world",field.text.toString())
+    }
+    @Test fun fullSettingsToolActionReturnsToKeyboardAndOpensRequestedTool() {
+        val settings=fullSettings()
+        val root=settings.findViewById<View>(android.R.id.content)
+        root.findViewWithTag<View>("settings:Writing tools").performClick()
+        root.findViewWithTag<View>("settings:Open translation").performClick()
+        assertTrue(settings.isFinishing)
+        returnToKeyboard()
+        assertNotNull(view.findViewWithTag<View>("WritingTool"))
+        assertNotNull(view.findViewWithTag<View>("tool:writing:download"))
+        assertEquals("",field.text.toString())
+    }
+    @Test fun emojiSearchIsLocalAndOnlyPickedEmojiEntersTheHostEditor() {
+        type("message"); click("Emoji"); click("EmojiSearch"); type("love")
+        assertEquals("message",field.text.toString())
+        click("emoji:❤️"); assertEquals("message ❤️",field.text.toString())
+        assertTrue(dev.raabta.keyboard.ui.EmojiPanel.search("محبت").contains("❤️"))
+        click("EmojiBack"); type(" hello"); assertEquals("message ❤️ hello",field.text.toString())
     }
     @Test fun emojiSuggestedForUrduEnglishAndRomanUrduWithoutReplacingWord() {
         type("love"); update(); click("suggestion:❤️")
@@ -118,13 +145,13 @@ class AdvancedKeyboardTest {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(121))
         assertTrue(preview.candidates(true).isEmpty())
     }
-    @Test fun emojiAndSuggestionControlsPersist() {
-        click("Settings"); click("settings:Emojis, stickers and GIFs")
-        val toggle=view.findViewWithTag<Switch>("option:emoji_row")
-        toggle.isChecked=true
+    @Test fun emojiAndSuggestionControlsPersistFromFullSettings() {
+        val settings=fullSettings()
+        val root=settings.findViewById<View>(android.R.id.content)
+        root.findViewWithTag<View>("settings:Emojis, stickers and GIFs").performClick()
+        root.findViewWithTag<Switch>("option:emoji_row").isChecked=true
         assertTrue(KeyboardOptions(service).enabled("emoji_row"))
-        view=ReflectionHelpers.getField(service,"keyboard")
-        view.showSettings("")
+        settings.finish(); returnToKeyboard()
         assertNotNull(view.findViewWithTag<View>("text:😂"))
     }
     @Test fun deniedOptionalContactPermissionDisablesTheFeature() {
@@ -144,7 +171,7 @@ class AdvancedKeyboardTest {
     }
     @Test fun dictionaryAdditionOnlyHappensOnExplicitAction() {
         type("hello"); assertTrue(KeyboardOptions(service).dictionary().isEmpty())
-        click("Settings"); click("settings:Dictionary"); click("settings:Add current word")
+        view.showSettings("Dictionary"); click("settings:Add current word")
         assertEquals(listOf("hello"),KeyboardOptions(service).dictionary())
     }
     @Test fun settingsOpeningCancelsHeldSymbols() {
@@ -189,11 +216,12 @@ class AdvancedKeyboardTest {
         assertNull(LocalSuggestions.glide("qxz",emptyList()))
     }
 
-    @Test fun changingNumberRowInsideSettingsPreservesEditorAndUpdatesKeyboard() {
-        type("hello"); click("Settings"); click("settings:Preferences")
-        view.findViewWithTag<Switch>("option:number_row").isChecked=true
-        view=ReflectionHelpers.getField(service,"keyboard")
-        view.showSettings("")
+    @Test fun changingNumberRowInFullSettingsPreservesEditorAndUpdatesKeyboardOnReturn() {
+        type("hello"); val settings=fullSettings()
+        val root=settings.findViewById<View>(android.R.id.content)
+        root.findViewWithTag<View>("settings:Preferences").performClick()
+        root.findViewWithTag<Switch>("option:number_row").isChecked=true
+        settings.finish(); returnToKeyboard()
         click("text:1"); assertEquals("hello1",field.text.toString())
     }
     @Test @Config(qualifiers="w600dp-h900dp") fun floatingKeyboardRemainsWithinWindowAndCanBeDragged() {

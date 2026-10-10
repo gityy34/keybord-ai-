@@ -50,7 +50,9 @@ object LocalSuggestions {
         }
         if (word.isEmpty() && next) {
             val nextWords = when (finished) { "hello", "hi" -> listOf("world", "friend"); "good" -> listOf("morning", "night");
-                "thank" -> listOf("you"); "آپ" -> listOf("کا", "کی"); "السلام" -> listOf("علیکم"); else -> emptyList() }
+                "thank" -> listOf("you"); "آپ" -> listOf("کا", "کی"); "السلام" -> listOf("علیکم");
+                "" -> if(language==1) listOf("میں","آپ","یہ") else if(language==2) listOf("main","aap","hai") else listOf("I","the","you")
+                else -> emptyList() }
             nextWords.forEach { result.add(Candidate(it, it)) }
         }
         if (smartReplies && word.isEmpty() && finished in listOf("hello", "hi", "سلام"))

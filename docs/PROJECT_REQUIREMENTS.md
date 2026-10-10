@@ -1258,3 +1258,8 @@ to the original architecture/privacy/provider requirements above.
 - Translation box: Urdu ↔ English, including explicit Speak → insert translation. Download model explicitly, then translate on-device.
 - AI Write editing tools with configurable HTTPS connection. User confirmed **no provider yet; add a configurable connection**. Never bundle a secret or upload ordinary editor context.
 - Review reusable code/dependencies, licence and data handling before integration; preserve TLS verification and add dependency checksums. Do not claim a closed SDK is proven malware-free.
+
+
+## Accepted 0.5 UI references (2026-10-10)
+
+The user supplied two CleverType screen recordings and an OPPO screenshot showing misaligned key labels. Implement the observed black/charcoal/violet theme; centre and fit key labels; separate symbol hints; use vector mic/Stop controls, recording levels, Urdu/English/Auto options; open full category settings instead of the small IME settings strip. Add AI assistance, grammar and tone selections, custom instructions, multiple real provider result cards, Show changes and Replace Text. Maintain the configurable provider, explicit requests and stale-editor safeguards. Local emoji search/categories follow the reference without uploading searches. Preserve existing gestures, learning, settings and signing key. See CLEVERTYPE_REFERENCE_0.5.md for the reviewed public sources and precise implementation limits.

@@ -80,6 +80,7 @@ class SetupActivity : Activity() {
         content.addView(label(getString(R.string.appearance_title), 22f, palette.text).apply { setPadding(0, dp(24), 0, dp(8)) })
         val preferences = KeyboardPreferences.load(this)
         content.addView(choiceGroup(listOf(
+            KeyboardTheme.MIDNIGHT to R.string.theme_midnight,
             KeyboardTheme.SYSTEM to R.string.theme_system,
             KeyboardTheme.LIGHT to R.string.theme_light,
             KeyboardTheme.DARK to R.string.theme_dark,

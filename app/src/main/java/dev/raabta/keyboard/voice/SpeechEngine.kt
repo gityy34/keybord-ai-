@@ -19,6 +19,7 @@ interface SpeechEngine {
     interface Listener {
         fun speechStarted() = Unit
         fun partial(text: String?) = Unit
+        fun level(rms:Float) = Unit
         fun processing()
         fun result(text: String?)
         fun error(error: VoiceError)
@@ -49,7 +50,7 @@ class DeviceSpeechEngine(private val context: Context, listener: SpeechEngine.Li
         recognizer.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) = Unit
             override fun onBeginningOfSpeech() = listener.speechStarted()
-            override fun onRmsChanged(rmsdB: Float) = Unit
+            override fun onRmsChanged(rmsdB: Float) = listener.level(rmsdB)
             override fun onBufferReceived(buffer: ByteArray?) = Unit
             override fun onEndOfSpeech() = listener.processing()
             override fun onError(error: Int) = listener.error(mapError(error))

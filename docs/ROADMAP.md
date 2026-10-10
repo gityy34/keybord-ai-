@@ -96,3 +96,8 @@ optional translation/AI/online media providers. Existing voice recognition still
 ## Learned suggestions and writing tools milestone (0.4.0)
 
 Balanced suggestion slots, 2/3/4 count, bounded local word-frequency learning, Roman Urdu-script common-word suggestions/conversion, swipe-word deletion, quick voice language tabs, on-device Urdu/English translation with explicit model download, and configurable AI Write are implemented. User chose no provider yet; live AI output requires a trusted connection. 115 regression tests and zero-issue lint pass. Source/dependency/security review and actual phone gates are in WRITING_TOOLS_0.4_VALIDATION.md and WRITING_TOOLS_0.4_SECURITY.md. ASR accuracy and language detection still depend on the system provider. Improve real-device bugs and performance next; expand licensed dictionaries/transliteration/glide, online media and production distribution only after acceptance.
+
+
+### 0.5 UI and writing-tool update
+
+Reference-based Midnight purple theme, centred/fitted labels and separate symbol hints; full-screen categorized settings; vector mic, real recognizer RMS and Stop/Cancel; AI tool/category chips and English/Urdu dropdowns, in-memory custom instructions, up to three provider previews, Show changes and Replace Text; local emoji search/categories. Uses original code and existing verified dependencies. Online AI still needs a chosen provider; OPPO acceptance remains required.

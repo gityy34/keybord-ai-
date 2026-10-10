@@ -8,7 +8,7 @@ import android.view.MotionEvent
 import android.widget.Button
 
 /** Keeps touch repetition and accessibility clicks on the same edit path. */
-class RepeatingDeleteButton @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) : androidx.appcompat.widget.AppCompatButton(context, attrs) {
+class RepeatingDeleteButton @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) : KeyButton(context, attrs) {
     private val handler = Handler(Looper.getMainLooper())
     private var repeating = false
     private var held = false

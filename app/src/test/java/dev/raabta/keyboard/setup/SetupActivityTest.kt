@@ -81,7 +81,7 @@ class SetupActivityTest {
         root.findViewWithTag<Switch>("Vibration").performClick()
         root.findViewWithTag<Switch>("Sound").performClick()
         root.findViewWithTag<RadioButton>("Height:TALL").performClick()
-        assertEquals(KeyboardPreferences(KeyboardTheme.SYSTEM, KeyboardHeight.TALL, true, false, true), KeyboardPreferences.load(activity))
+        assertEquals(KeyboardPreferences(KeyboardTheme.MIDNIGHT, KeyboardHeight.TALL, true, false, true), KeyboardPreferences.load(activity))
         root.findViewWithTag<RadioButton>("Theme:DARK").performClick()
         assertEquals(KeyboardTheme.DARK, KeyboardPreferences.load(activity).theme)
         controller.pause().stop().destroy()

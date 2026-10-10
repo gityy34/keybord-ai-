@@ -102,4 +102,10 @@
     <string name="ai_connection_invalid">Check the HTTPS URL, model name and token. Could not save securely.</string>
     <string name="ai_connection_remove">Remove connection and token</string>
     <string name="writing_draft_hint">Type here, or use selected text. Your draft stays in this box.</string>
+    <string name="theme_midnight">Midnight purple</string>
+    <string name="voice_stop_short">Stop</string>
+    <string name="emoji_search">Search emoji</string>
+    <string name="emoji_no_match">No matching emoji.</string>
+    <string name="custom_instruction_notice">This instruction stays in memory. Your existing draft is kept.</string>
+    <string name="writing_use_tool">Use tool</string>
 </resources>

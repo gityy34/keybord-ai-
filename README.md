@@ -8,7 +8,7 @@ Android **8.0 or newer** is required.
 
 ## Install and start typing
 
-1. [Download APK 0.4.0 for your OPPO / ARM64 phone](https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-tools-0.4.0/raabta-keyboard-0.4.0.apk), or obtain it from GitHub Actions below. Sign in to GitHub first if the repository is private.
+1. [Download APK 0.5.0 for your OPPO / ARM64 phone](https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-ui-0.5.0/raabta-keyboard-0.5.0.apk), or obtain it from GitHub Actions below. Sign in to GitHub first if the repository is private.
 2. Open the APK on your Android phone. If Android asks, allow your browser/file manager to install this app.
 3. Open **Raabta Keyboard**.
 4. Tap **1 · Enable Raabta**, find **Raabta Keyboard**, and turn it on. Android displays its standard keyboard-access warning. Menu names vary by manufacturer.
@@ -41,8 +41,8 @@ Phone comfort, rotation and sustained typing still need real-device acceptance; 
 
 ## Voice typing
 
-The 0.4.0 download uses the same debug signing certificate as the delivered 0.1.0 APK and can update it
-without uninstalling. Version 0.1.1 failed its voice test on the user’s OPPO Reno 11 5G (reported Android 16), with an unsupported-language/model error. The user subsequently reported online English/Urdu recognition working, with Urdu mistakes and short-pause completion issues. Version 0.2.1 added buffered Stop/long-pause completion; 0.3.0 and 0.4.0 retain those controls.
+The 0.5.0 download uses the same debug signing certificate as the delivered 0.1.0 APK and can update it
+without uninstalling. Version 0.1.1 failed its voice test on the user’s OPPO Reno 11 5G (reported Android 16), with an unsupported-language/model error. The user subsequently reported online English/Urdu recognition working, with Urdu mistakes and short-pause completion issues. Version 0.2.1 added buffered Stop/long-pause completion; 0.3.0 and 0.5.0 retain those controls.
 
 1. In **Voice typing** settings, choose **English voice**, **Urdu voice**, or **Auto-detect English / Urdu** (Android 14+, provider support required). Voice language and the **Languages** key-layout setting are independent.
 2. Focus a normal text field and tap the keyboard's microphone. If permission is missing, tap **Allow microphone**,
@@ -61,9 +61,11 @@ No typed context is sent, and the keyboard stores no recordings or transcript hi
 The microphone shows quick **Urdu / English / Auto** tabs. Changing a tab cancels the old session; tap the microphone to start the selected language. Auto requests careful provider language switching; provider accuracy is not replaced by this change.
 See [continuous dictation validation](docs/CONTINUOUS_VOICE_VALIDATION.md) and [reference review/next steps](docs/KEYBOARD_REFERENCE_REVIEW.md).
 
-## Settings, suggestions and gestures (0.4.0)
+## Settings, suggestions and gestures (0.5.0)
 
-Category pages use headings, descriptions, switches, sliders and radio choices. Gear navigation stays in the IME.
+**Midnight purple** uses a black background, charcoal keys and violet controls. Existing explicit theme choices remain saved. Key labels use explicit centering, bounded text measurements and separate symbol hints to avoid OEM-font clipping. The mic has vector artwork, a real RMS level meter, Stop and Cancel.
+
+Category pages use headings, descriptions, switches, sliders and radio choices. The gear opens a full-screen settings page with all categories, separate from first-run setup. Back returns to the previous app; changed preferences are applied when the keyboard reopens. Settings tool actions open the requested tool on return.
 Preferences include key visibility, number rows, font/emoji size, height, one-handed/floating layout,
 Space cursor sliding, punctuation shortcuts, held/flick symbols, key popups, sound volume/vibration duration,
 Backspace timings and launcher-icon visibility. Tools includes theme/resize, emoji, text editing, share,
@@ -79,7 +81,7 @@ floating, undo and clipboard. Drag the title in floating mode; switching fields/
   uses editor-supported spans. This is a small offline starter dictionary/rule set, not a full grammar engine.
 - **Languages:** English, native Unicode Urdu and Roman Urdu QWERTY; Urdu held variants supply additional
   letters. Roman Urdu layout can offer Urdu-script common-word suggestions such as `hai → ہے`; the explicit converter leaves unknown words unchanged.
-- **Emoji/media:** picker, optional fast-access/recent row, symbols row and adjustable size. Four original
+- **Emoji/media:** local search and categories in the picker, optional fast-access/recent row, symbols row and adjustable size. Four original
   offline smile/heart sticker/GIF choices are included; the receiving app must support rich content. Online
   media search remains unconnected. Translation and optional AI tools are described below.
 - **Clipboard:** explicit toolbar access, optional current-clipboard suggestions, basic extraction of phones,
@@ -95,9 +97,9 @@ floating, undo and clipboard. Drag the title in floating mode; switching fields/
 
 - **Swipe Backspace:** drag left to highlight increasingly many words; release to delete. Reverse/cancel keeps text. Tap/hold deletion remains supported.
 
-See [0.4 validation and phone checks](docs/WRITING_TOOLS_0.4_VALIDATION.md), and the earlier [screenshot feature matrix](docs/SETTINGS_0.3_VALIDATION.md). Device smoothness,
+See [0.5 UI validation and phone checks](docs/UI_0.5_VALIDATION.md) and [reference review](docs/CLEVERTYPE_REFERENCE_0.5.md), and the earlier [screenshot feature matrix](docs/SETTINGS_0.3_VALIDATION.md). Device smoothness,
 app-specific spans/paste/undo, gesture feel and Urdu layout comfort remain OPPO phone acceptance checks.
-If a private GitHub download opens a page without downloading, use [the APK file page](https://github.com/gityy34/keybord-ai-/blob/apk-tools-0.4.0/raabta-keyboard-0.4.0.apk)
+If a private GitHub download opens a page without downloading, use [the APK file page](https://github.com/gityy34/keybord-ai-/blob/apk-ui-0.5.0/raabta-keyboard-0.5.0.apk)
 in Chrome, sign in with repository access and select **Download raw file / View raw**.
 
 ## Translation, Roman Urdu and AI Write
@@ -106,7 +108,7 @@ Tap **⇄** or **Tools → Translation**. Download the model explicitly once, th
 
 **Tools → Roman Urdu → Urdu** converts common spellings using a finite original offline lexicon. Unknown names/words remain unchanged.
 
-**Tools → AI Write** offers rewrite, correction, formal/friendly tone, shortening and continuation in English or Urdu. The user chose a configurable connection with no provider yet: configure a trusted OpenAI-compatible HTTPS endpoint ending `/chat/completions`, its model and optional token. A token is encrypted with Android Keystore and never bundled. **Generate** sends only this tool draft to that endpoint; review and **Insert** separately. Typing works without a provider. Provider charges/policies apply; never send secrets in chat. No real AI provider has been tested yet.
+**✦ → AI Write** offers AI assistance, grammar tools and tone chips in English or Urdu: Humanise, Reply, Summary, Caption, Email, Ask AI, Phrase-to-emoji, Grammar Fix, Rephrase, Add emojis, Professional, Casual, Polite, Romantic, Empathetic, Funny, Poetic, Shorten, Sarcastic, Angry, Flirty, Gen-Z and Witty. A custom in-memory instruction is available. One Generate request can return up to three genuine alternatives; plain-text providers return one. Each result card has **Replace Text** and **Show changes**. No request is made just by selecting a tool. The user chose a configurable connection with no provider yet: configure a trusted OpenAI-compatible HTTPS endpoint ending `/chat/completions`, its model and optional token. A token is encrypted with Android Keystore and never bundled. **Generate** sends only this tool draft to that endpoint; review and **Replace Text** separately. Typing works without a provider. Provider charges/policies apply; never send secrets in chat. No real AI provider has been tested yet.
 
 Read [the dependency/security review](docs/WRITING_TOOLS_0.4_SECURITY.md). Closed SDK internals are not certified malware-free. Internet/network-state permissions are declared for these explicit features; ordinary typing is not uploaded.
 
@@ -123,7 +125,7 @@ The workflow runs on pushes, pull requests, and manual dispatch. It installs Jav
 runs unit/service tests and Android lint, builds a debug APK, and uploads the APK and validation reports.
 Actions versions were checked against their current official documentation during implementation.
 Source code and the Gradle wrapper are tracked; APKs, caches, SDKs, signing keys, and local config are ignored in the development branch.
-The separate `apk-phase-1-0.1.0`, `apk-voice-0.1.1`, and `apk-phase-2-0.2.0`, and `apk-voice-0.2.1`, `apk-keyboard-0.3.0`, `apk-tools-0.4.0` branches contain verified APKs as direct-download fallbacks while cloud access to
+The separate `apk-phase-1-0.1.0`, `apk-voice-0.1.1`, and `apk-phase-2-0.2.0`, and `apk-voice-0.2.1`, `apk-keyboard-0.3.0`, `apk-tools-0.4.0`, `apk-ui-0.5.0` branches contain verified APKs as direct-download fallbacks while cloud access to
 the Actions API is blocked. Future builds should use Actions artifacts or release assets.
 
 Delivered APKs retain the same signing key and can update the previous installation. A CI debug build may have a different signer; use the delivered APK and diagnose the signature before removing an installation and its local settings.
@@ -164,4 +166,4 @@ Each cloud task is already isolated: use the existing checkout; do not create a 
 
 Ordinary typing goes directly to the active app through `InputConnection` and is not uploaded. Optional learned words store bounded word frequencies locally; passwords/private fields are excluded. Voice uses Android's speech provider and may process audio online. Translation uses Google ML Kit on-device after explicit model download; the SDK may send diagnostics. AI sends only an explicit tool draft to your configured provider after Generate. No API key/provider is bundled. Clipboard/contact previews and voice/writing drafts are temporary; settings, explicit dictionary words and recent emoji may persist. Android cloud backup/device transfer of app files are excluded.
 
-This is an original testing keyboard, with small offline word/grammar/glide/Roman Urdu lexicons. Translation output, system speech accuracy, host editing/media support, physical-device latency and stability require phone acceptance. Broad dictionaries, sophisticated glide recognition, online media search and production release signing remain future work. Current validation and security evidence are in [0.4 validation](docs/WRITING_TOOLS_0.4_VALIDATION.md) and [security review](docs/WRITING_TOOLS_0.4_SECURITY.md).
+This is an original testing keyboard, with small offline word/grammar/glide/Roman Urdu lexicons. Translation output, system speech accuracy, host editing/media support, physical-device latency and stability require phone acceptance. Broad dictionaries, sophisticated glide recognition, online media search and production release signing remain future work. Current validation and security evidence are in [0.5 validation](docs/UI_0.5_VALIDATION.md) and [security review](docs/WRITING_TOOLS_0.4_SECURITY.md).

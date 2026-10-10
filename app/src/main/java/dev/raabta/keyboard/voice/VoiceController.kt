@@ -14,6 +14,7 @@ class VoiceController(
     private val onPreview: (String) -> Unit = {},
     private val pauseMillis: () -> Long = { 8_000 },
     private val finalWaitMillis: () -> Long = { 800 },
+    private val onLevel: (Float) -> Unit = {},
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private var generation = 0
@@ -60,6 +61,7 @@ class VoiceController(
         fun current() = session == generation && utterance == segment && active
         try {
             engine = factory.create(object : SpeechEngine.Listener {
+                override fun level(rms:Float) { if(current() && state==VoiceState.LISTENING) onLevel(rms) }
                 override fun speechStarted() {
                     if (!current() || state != VoiceState.LISTENING) return
                     quietSince = -1

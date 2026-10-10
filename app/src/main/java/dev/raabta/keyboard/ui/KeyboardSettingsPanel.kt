@@ -10,7 +10,7 @@ import dev.raabta.keyboard.voice.VoiceSettings
 import dev.raabta.keyboard.ime.LearnedWords
 import dev.raabta.keyboard.tools.AiConnection
 
-/** Hosted inside the IME view, never launches the onboarding activity. */
+/** Shared categories for full-screen settings and the in-IME tools menu. */
 class KeyboardSettingsPanel @JvmOverloads constructor(
     context: Context, private val page: String = "Raabta settings", private val navigate: (String) -> Unit = {},
     private val changed: () -> Unit = {}, private val action: (String) -> Unit = {},
@@ -23,13 +23,13 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         tag = "SettingsPanel"
         setBackgroundColor(palette.background)
         val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(palette.surface) }
-        header.addView(Button(context).apply {
+        header.addView(dev.raabta.keyboard.ime.ToolbarButton(context).apply {
             text = "‹"; contentDescription = "Back"; tag = "SettingsBack"
-            setTextColor(palette.text); setOnClickListener { navigate(if (page == "Raabta settings") "" else "Raabta settings") }
+            setTextColor(palette.text); background=rounded(palette.surface,0f); setOnClickListener { navigate(if (page == "Raabta settings") "" else "Raabta settings") }
         }, LayoutParams(context.dp(52), context.dp(52)))
         header.addView(label(page, 21f), LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         addView(header)
-        addView(ScrollView(context).apply { addView(body) }, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
+        addView(ScrollView(context).apply { tag="SettingsScroll"; addView(body); isFillViewport=true }, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         when (page) {
             "Raabta settings" -> home()
             "Preferences" -> preferences()
@@ -93,13 +93,13 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
                 row("Clear dictionary and recent emoji", "Also clears learned words and current clipboard previews.") { options.clearLocalData(); action("clear"); changed(); navigate(page) }
                 row("App permissions", "Manage microphone, optional contacts and screenshot access in Android.") { action("permissions") }
             }
-            "About" -> note("Raabta Keyboard 0.4.0\nLocal typing and suggestions; optional system voice recognition.\nSettings stay inside the keyboard. Android permission screens are system dialogs.")
+            "About" -> note("Raabta Keyboard 0.5.0\nLocal typing and suggestions; optional system voice recognition.\nThe gear opens full-screen settings; Back returns to your app.\nAI tools use your chosen provider. Android permission screens are system dialogs.")
             "Help and feedback" -> note("Space: tap to insert a space; slide to move the cursor.\nHold a letter for its symbol.\nTap a suggestion to insert it; emoji do not replace your word.\nUrdu voice: use Urdu-only mode for mostly Urdu phrases.\nImage paste requires an app that accepts image content.\nReport issues with the app, Android version and steps to reproduce.")
         }
     }
     private fun home() {
         listOf("Languages" to "English, Urdu and Roman Urdu", "Preferences" to "Keys, size, layout, shortcuts and feedback",
-            "Theme" to "System, light or dark", "Corrections and suggestions" to "Local words, emoji and correction controls",
+            "Theme" to "Midnight purple, system, light or dark", "Corrections and suggestions" to "Local words, emoji and correction controls",
             "Glide typing" to "Slide typing and Space cursor control", "Voice typing" to "Languages, Stop and long-pause behaviour",
             "Clipboard" to "Copied text, images and extracted items", "Dictionary" to "Your explicitly saved words",
             "Emojis, stickers and GIFs" to "Emoji rows, size and suggestions", "Privacy" to "Local data and permissions",
@@ -222,7 +222,11 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         val line = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0,context.dp(10),0,context.dp(10)) }
         val texts = LinearLayout(context).apply { orientation = VERTICAL; addView(label(title,18f)); addView(label(detail,13f,palette.muted)) }
         line.addView(texts,LayoutParams(0,LayoutParams.WRAP_CONTENT,1f))
-        line.addView(Switch(context).apply { tag = "option:$key"; contentDescription = title; isChecked=value; setOnCheckedChangeListener { _,checked-> save(checked) } })
+        line.addView(Switch(context).apply {
+            thumbTintList=android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked),intArrayOf()),intArrayOf(palette.accent,palette.muted))
+            trackTintList=android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked),intArrayOf()),intArrayOf((palette.accent and 0x00FFFFFF) or 0x66000000,0xFF55515B.toInt()))
+            tag = "option:$key"; contentDescription = title; isChecked=value; setOnCheckedChangeListener { _,checked-> save(checked) }
+        })
         body.addView(line)
     }
     private fun slider(key: String, title: String, detail: String) {
@@ -230,6 +234,8 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         val text = label("$title · ${options.number(key)}",18f)
         body.addView(text); body.addView(label(detail,13f,palette.muted))
         body.addView(SeekBar(context).apply {
+            progressTintList=android.content.res.ColorStateList.valueOf(palette.accent)
+            thumbTintList=android.content.res.ColorStateList.valueOf(palette.accent)
             tag="option:$key"; contentDescription=title; max=range.last-range.first; progress=options.number(key)-range.first
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(bar:SeekBar?,value:Int,user:Boolean) { if(user) { options.setNumber(key,value+range.first); text.text=context.getString(dev.raabta.keyboard.R.string.setting_value,title,value+range.first) } }
@@ -242,6 +248,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         body.addView(label(title,18f))
         body.addView(RadioGroup(context).apply {
             values.forEachIndexed { index,value -> addView(RadioButton(context).apply {
+                typeface=android.graphics.Typeface.DEFAULT; buttonTintList=android.content.res.ColorStateList.valueOf(palette.accent)
                 id=View.generateViewId(); tag="choice:$title:$index"; text=value; setTextColor(palette.text); isChecked=index==selected
                 setOnCheckedChangeListener { _,checked -> if(checked) save(index) }
             }) }
@@ -256,5 +263,5 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
     }
     private fun section(text:String) { body.addView(label(text,14f,palette.accent).apply { setPadding(0,context.dp(20),0,context.dp(12)) }) }
     private fun note(text:String) { body.addView(label(text,15f,palette.muted).apply { setPadding(0,context.dp(14),0,context.dp(14)) }) }
-    private fun label(text:String,size:Float,color:Int=palette.text) = TextView(context).apply { this.text=text; textSize=size; setTextColor(color); setPadding(0,context.dp(3),context.dp(12),context.dp(3)) }
+    private fun label(text:String,size:Float,color:Int=palette.text) = TextView(context).apply { this.text=text; textSize=size; typeface=android.graphics.Typeface.DEFAULT; setTextColor(color); setPadding(0,context.dp(3),context.dp(12),context.dp(3)) }
 }

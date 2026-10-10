@@ -10,15 +10,15 @@ data class Palette(val background: Int, val surface: Int, val text: Int, val mut
     companion object {
         fun isDark(context: Context): Boolean = when (KeyboardPreferences.load(context).theme) {
             KeyboardTheme.LIGHT -> false
-            KeyboardTheme.DARK -> true
+            KeyboardTheme.DARK, KeyboardTheme.MIDNIGHT -> true
             KeyboardTheme.SYSTEM -> context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
         }
 
         fun from(context: Context): Palette =
             if (isDark(context)) {
-                Palette(0xFF1E2029.toInt(), 0xFF30333D.toInt(), 0xFFF0F5F2.toInt(), 0xFFBACBC5.toInt(), 0xFFA9BFFF.toInt())
+                Palette(Color.BLACK, 0xFF242428.toInt(), 0xFFF4F2FA.toInt(), 0xFFABA8B5.toInt(), 0xFF7961FF.toInt())
             } else {
-                Palette(0xFFF1F5F1.toInt(), Color.WHITE, 0xFF182C28.toInt(), 0xFF516860.toInt(), 0xFF176B60.toInt())
+                Palette(0xFFF5F3FA.toInt(), Color.WHITE, 0xFF242030.toInt(), 0xFF676173.toInt(), 0xFF654BCF.toInt())
             }
     }
 }

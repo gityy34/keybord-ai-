@@ -3,12 +3,12 @@ package dev.raabta.keyboard.ui
 import androidx.core.content.edit
 import android.content.Context
 
-enum class KeyboardTheme { SYSTEM, LIGHT, DARK }
+enum class KeyboardTheme { SYSTEM, LIGHT, DARK, MIDNIGHT }
 enum class KeyboardHeight { COMPACT, NORMAL, TALL }
 
 /** Only presentation preferences are stored; never editor text or audio. */
 data class KeyboardPreferences(
-    val theme: KeyboardTheme = KeyboardTheme.SYSTEM,
+    val theme: KeyboardTheme = KeyboardTheme.MIDNIGHT,
     val height: KeyboardHeight = KeyboardHeight.NORMAL,
     val numberRow: Boolean = false,
     val vibration: Boolean = true,
@@ -21,7 +21,7 @@ data class KeyboardPreferences(
 
         fun load(context: Context): KeyboardPreferences {
             val preferences = store(context)
-            val theme = KeyboardTheme.entries.firstOrNull { it.name == preferences.getString("theme", null) } ?: KeyboardTheme.SYSTEM
+            val theme = KeyboardTheme.entries.firstOrNull { it.name == preferences.getString("theme", KeyboardTheme.MIDNIGHT.name) } ?: KeyboardTheme.SYSTEM
             val height = KeyboardHeight.entries.firstOrNull { it.name == preferences.getString("height", null) } ?: KeyboardHeight.NORMAL
             return KeyboardPreferences(theme, height, preferences.getBoolean("number_row", false),
                 preferences.getBoolean("vibration", true), preferences.getBoolean("sound", false),
