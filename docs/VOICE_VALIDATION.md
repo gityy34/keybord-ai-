@@ -1,5 +1,10 @@
 # Voice typing update validation
 
+**Phone update, 2026-10-10:** the user reports 0.1.1 voice did not work on OPPO Reno 11 5G,
+reported Android 16, showing “This speech service or offline model does not support the selected…”
+(the original unsupported-language message). Voice phone acceptance is **failed**, while earlier
+basic keyboard acceptance remains passed. See [the combined 0.2.0 update](PHASE_2_VALIDATION.md).
+
 Date: 2026-10-09. Version: **0.1.1** (version code 2). Source branch: `voice-typing`.
 The user accepted the basic 0.1.0 phone tests and then requested speech-to-text. This delivery
 implements that voice milestone ahead of the remaining roadmap phases.

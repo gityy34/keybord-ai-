@@ -6,6 +6,12 @@ import android.content.pm.PackageManager
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
+import android.widget.Switch
+import dev.raabta.keyboard.voice.VoiceSettings
+import dev.raabta.keyboard.ui.KeyboardPreferences
+import dev.raabta.keyboard.ui.KeyboardHeight
+import dev.raabta.keyboard.ui.KeyboardTheme
+import android.widget.RadioButton
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,6 +53,34 @@ class SetupActivityTest {
         assertTrue(service.exported)
         assertTrue(service.metaData.containsKey("android.view.im"))
         assertEquals(PackageManager.PERMISSION_DENIED, manager.checkPermission(Manifest.permission.INTERNET, activity.packageName))
+        controller.pause().stop().destroy()
+    }
+
+    @Test fun systemSpeechIsDefaultAndOnDeviceModeIsAnExplicitPersistentChoice() {
+        val controller = Robolectric.buildActivity(SetupActivity::class.java).setup()
+        val activity = controller.get()
+        assertFalse(VoiceSettings.onDeviceOnly(activity))
+        val toggle = activity.window.decorView.findViewWithTag<Switch>("OnDeviceOnly")
+        assertFalse(toggle.isChecked)
+        toggle.performClick()
+        assertTrue(VoiceSettings.onDeviceOnly(activity))
+        controller.pause().stop().destroy()
+        val reopened = Robolectric.buildActivity(SetupActivity::class.java).setup()
+        assertTrue(reopened.get().window.decorView.findViewWithTag<Switch>("OnDeviceOnly").isChecked)
+        reopened.pause().stop().destroy()
+    }
+
+    @Test fun customizationControlsSaveOnlyPresentationChoices() {
+        val controller = Robolectric.buildActivity(SetupActivity::class.java).setup()
+        val activity = controller.get()
+        val root = activity.window.decorView
+        root.findViewWithTag<Switch>("NumberRow").performClick()
+        root.findViewWithTag<Switch>("Vibration").performClick()
+        root.findViewWithTag<Switch>("Sound").performClick()
+        root.findViewWithTag<RadioButton>("Height:TALL").performClick()
+        assertEquals(KeyboardPreferences(KeyboardTheme.SYSTEM, KeyboardHeight.TALL, true, false, true), KeyboardPreferences.load(activity))
+        root.findViewWithTag<RadioButton>("Theme:DARK").performClick()
+        assertEquals(KeyboardTheme.DARK, KeyboardPreferences.load(activity).theme)
         controller.pause().stop().destroy()
     }
 

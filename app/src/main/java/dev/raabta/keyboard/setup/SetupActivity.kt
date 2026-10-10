@@ -19,11 +19,15 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.RadioButton
 import android.widget.RadioGroup
+import android.widget.Switch
 import dev.raabta.keyboard.R
 import dev.raabta.keyboard.ime.RaabtaInputMethodService
 import dev.raabta.keyboard.ui.Palette
 import dev.raabta.keyboard.ui.dp
 import dev.raabta.keyboard.ui.rounded
+import dev.raabta.keyboard.ui.KeyboardPreferences
+import dev.raabta.keyboard.ui.KeyboardTheme
+import dev.raabta.keyboard.ui.KeyboardHeight
 import dev.raabta.keyboard.voice.VoiceSettings
 import dev.raabta.keyboard.voice.VoicePermissionActivity
 
@@ -34,6 +38,7 @@ class SetupActivity : Activity() {
     private lateinit var palette: Palette
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(if (Palette.isDark(this)) R.style.AppTheme_Dark else R.style.AppTheme)
         super.onCreate(savedInstanceState)
         palette = Palette.from(this)
         val scroll = ScrollView(this).apply {
@@ -71,6 +76,34 @@ class SetupActivity : Activity() {
             getSystemService(InputMethodManager::class.java).showInputMethodPicker()
         }
         content.addView(picker)
+        content.addView(label(getString(R.string.appearance_title), 22f, palette.text).apply { setPadding(0, dp(24), 0, dp(8)) })
+        val preferences = KeyboardPreferences.load(this)
+        content.addView(choiceGroup(listOf(
+            KeyboardTheme.SYSTEM to R.string.theme_system,
+            KeyboardTheme.LIGHT to R.string.theme_light,
+            KeyboardTheme.DARK to R.string.theme_dark,
+        ), preferences.theme, "Theme") { selected ->
+            KeyboardPreferences.save(this, KeyboardPreferences.load(this).copy(theme = selected))
+            recreate()
+        })
+        content.addView(label(getString(R.string.height_title), 17f, palette.text).apply { setPadding(0, dp(12), 0, 0) })
+        content.addView(choiceGroup(listOf(
+            KeyboardHeight.COMPACT to R.string.height_compact,
+            KeyboardHeight.NORMAL to R.string.height_normal,
+            KeyboardHeight.TALL to R.string.height_tall,
+        ), preferences.height, "Height") { selected ->
+            KeyboardPreferences.save(this, KeyboardPreferences.load(this).copy(height = selected))
+        })
+        content.addView(toggle(R.string.number_row, "NumberRow", preferences.numberRow) {
+            KeyboardPreferences.save(this, KeyboardPreferences.load(this).copy(numberRow = it))
+        })
+        content.addView(toggle(R.string.vibration_toggle, "Vibration", preferences.vibration) {
+            KeyboardPreferences.save(this, KeyboardPreferences.load(this).copy(vibration = it))
+        })
+        content.addView(toggle(R.string.sound_toggle, "Sound", preferences.sound) {
+            KeyboardPreferences.save(this, KeyboardPreferences.load(this).copy(sound = it))
+        })
+        content.addView(label(getString(R.string.feedback_help), 13f, palette.muted).apply { setPadding(0, dp(8), 0, dp(8)) })
         content.addView(label(getString(R.string.test_heading), 22f, palette.text).apply { setPadding(0, dp(26), 0, dp(12)) })
         content.addView(testField(R.id.test_message, R.string.test_hint,
             InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE,
@@ -83,7 +116,7 @@ class SetupActivity : Activity() {
         content.addView(label(getString(R.string.typing_help), 14f, palette.muted).apply { setPadding(0, dp(14), 0, dp(24)) })
         content.addView(label(getString(R.string.voice_title), 20f, palette.text))
         val languages = RadioGroup(this)
-        for ((language, title) in listOf(VoiceSettings.ENGLISH to R.string.voice_language_english, VoiceSettings.URDU to R.string.voice_language_urdu)) {
+        for ((language, title) in listOf(VoiceSettings.ENGLISH to R.string.voice_language_english, VoiceSettings.URDU to R.string.voice_language_urdu, VoiceSettings.MIXED to R.string.voice_language_mixed)) {
             languages.addView(RadioButton(this).apply {
                 id = View.generateViewId()
                 setText(title)
@@ -93,6 +126,13 @@ class SetupActivity : Activity() {
             })
         }
         content.addView(languages)
+        content.addView(Switch(this).apply {
+            tag = "OnDeviceOnly"
+            setText(R.string.voice_on_device_only)
+            setTextColor(palette.text)
+            isChecked = VoiceSettings.onDeviceOnly(this@SetupActivity)
+            setOnCheckedChangeListener { _, enabled -> VoiceSettings.setOnDeviceOnly(this@SetupActivity, enabled) }
+        })
         content.addView(label(getString(R.string.voice_privacy), 14f, palette.muted).apply { setPadding(0, dp(8), 0, dp(12)) })
         content.addView(action(R.string.voice_allow) { startActivity(Intent(this, VoicePermissionActivity::class.java)) })
         content.addView(label("", 14f, palette.muted).apply { setPadding(0, dp(12), 0, 0) })
@@ -101,6 +141,29 @@ class SetupActivity : Activity() {
         content.addView(label(getString(R.string.version_label), 12f, palette.muted))
         content.isFocusableInTouchMode = true
         content.requestFocus()
+    }
+
+    private fun <T> choiceGroup(choices: List<Pair<T, Int>>, selected: T, prefix: String, onChoice: (T) -> Unit) = RadioGroup(this).apply {
+        choices.forEach { (value, title) ->
+            addView(RadioButton(this@SetupActivity).apply {
+                id = View.generateViewId()
+                tag = "$prefix:$value"
+                setText(title)
+                setTextColor(palette.text)
+                isChecked = value == selected
+                setOnCheckedChangeListener { _, checked -> if (checked) onChoice(value) }
+            })
+        }
+    }
+
+    private fun toggle(title: Int, viewTag: String, selected: Boolean, onToggle: (Boolean) -> Unit) = Switch(this).apply {
+        tag = viewTag
+        setText(title)
+        setTextColor(palette.text)
+        isChecked = selected
+        setPadding(0, dp(6), 0, dp(6))
+        minHeight = dp(48)
+        setOnCheckedChangeListener { _, checked -> onToggle(checked) }
     }
 
     override fun onResume() {

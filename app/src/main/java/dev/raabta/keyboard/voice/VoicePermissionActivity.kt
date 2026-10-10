@@ -13,6 +13,7 @@ import android.widget.TextView
 import android.widget.ScrollView
 import dev.raabta.keyboard.R
 import dev.raabta.keyboard.ui.dp
+import dev.raabta.keyboard.ui.Palette
 
 /** Permission is requested from an activity; granting it never starts recording automatically. */
 class VoicePermissionActivity : Activity() {
@@ -21,6 +22,7 @@ class VoicePermissionActivity : Activity() {
     private var requested = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(if (Palette.isDark(this)) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert)
         super.onCreate(savedInstanceState)
         requested = savedInstanceState?.getBoolean("requested") ?: false
         val content = LinearLayout(this).apply {

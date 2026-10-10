@@ -10,6 +10,7 @@ import android.view.View
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.widget.TextView
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -21,6 +22,8 @@ import org.robolectric.annotation.Config
 import org.robolectric.util.ReflectionHelpers
 import org.robolectric.RuntimeEnvironment
 import dev.raabta.keyboard.voice.*
+import dev.raabta.keyboard.ui.KeyboardPreferences
+import dev.raabta.keyboard.ui.KeyboardTheme
 import java.time.Duration
 
 @RunWith(org.robolectric.RobolectricTestRunner::class)
@@ -246,5 +249,50 @@ class KeyboardServiceTest {
         val intent = shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity
         assertEquals(VoicePermissionActivity::class.java.name, intent.component!!.className)
         assertEquals("", editor.text.toString())
+    }
+
+    @Test fun unsupportedLanguageShowsPersistentErrorAndTypingStillWorks() {
+        val speech = startVoice()
+        speech.listener.error(VoiceError.LANGUAGE)
+        val banner = view.findViewWithTag<TextView>("VoiceMessage")
+        assertEquals(View.VISIBLE, banner.visibility)
+        assertTrue(banner.text.toString().contains("On-device only"))
+        type("hello")
+        assertEquals("hello", editor.text.toString())
+        assertTrue(speech.destroyed)
+        startVoice()
+        assertEquals(View.GONE, banner.visibility)
+    }
+
+    @Test fun returningFromPermissionScreenExplainsThatMicrophoneNeedsAnotherTap() {
+        shadowOf(RuntimeEnvironment.getApplication()).denyPermissions(Manifest.permission.RECORD_AUDIO)
+        service.speechEngineFactory = SpeechEngineFactory { fail("Must not record automatically"); throw AssertionError() }
+        press("Voice")
+        shadowOf(RuntimeEnvironment.getApplication()).grantPermissions(Manifest.permission.RECORD_AUDIO)
+        service.onStartInputView(EditorInfo(), false)
+        val banner = view.findViewWithTag<TextView>("VoiceMessage")
+        assertEquals(View.VISIBLE, banner.visibility)
+        assertTrue(banner.text.toString().contains("tap the microphone"))
+        assertEquals("", editor.text.toString())
+    }
+
+    @Test fun preferenceRefreshKeepsEditorTextAndNumberRowTypesIntoCurrentConnection() {
+        type("hello ")
+        KeyboardPreferences.save(service, KeyboardPreferences(theme = KeyboardTheme.DARK, numberRow = true))
+        service.onStartInputView(EditorInfo(), false)
+        view = ReflectionHelpers.getField(service, "keyboard")
+        press("text:1")
+        type("world")
+        assertEquals("hello 1world", editor.text.toString())
+        assertTrue(view.matchesCurrentPreferences())
+    }
+
+    @Test fun mixedVoiceDoesNotSilentlyPretendToAutoSwitchOnUnsupportedAndroid() {
+        VoiceSettings.setLanguage(service, VoiceSettings.MIXED)
+        service.speechEngineFactory = SpeechEngineFactory { fail("Old Android must not start mixed recognition"); throw AssertionError() }
+        press("Voice")
+        assertTrue(view.findViewWithTag<TextView>("VoiceMessage").text.toString().contains("Android 14"))
+        type("abc")
+        assertEquals("abc", editor.text.toString())
     }
 }

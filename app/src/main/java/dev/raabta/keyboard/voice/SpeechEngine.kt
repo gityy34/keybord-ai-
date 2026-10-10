@@ -27,14 +27,19 @@ fun interface SpeechEngineFactory {
     fun create(listener: SpeechEngine.Listener): SpeechEngine
 }
 
-enum class VoiceError { PERMISSION, UNAVAILABLE, NETWORK, NO_SPEECH, BUSY, LANGUAGE, TIMEOUT, INTERNAL }
+enum class VoiceError { PERMISSION, UNAVAILABLE, NETWORK, NO_SPEECH, BUSY, LANGUAGE, AUDIO, TIMEOUT, INTERNAL }
 
 class DeviceSpeechEngine(private val context: Context, listener: SpeechEngine.Listener) : SpeechEngine {
     private val recognizer: SpeechRecognizer
+    private val onDeviceOnly = VoiceSettings.onDeviceOnly(context)
 
     init {
-        recognizer = if (Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
-            SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+        recognizer = if (onDeviceOnly) {
+            if (Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+            } else {
+                throw IllegalStateException("On-device recognition unavailable")
+            }
         } else {
             check(SpeechRecognizer.isRecognitionAvailable(context)) { "No system speech recognizer" }
             SpeechRecognizer.createSpeechRecognizer(context)
@@ -58,19 +63,26 @@ class DeviceSpeechEngine(private val context: Context, listener: SpeechEngine.Li
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             throw SecurityException("Microphone permission is required")
         }
-        recognizer.startListening(request(language))
+        recognizer.startListening(request(language, onDeviceOnly))
     }
     override fun stop() = recognizer.stopListening()
     override fun cancel() = recognizer.cancel()
     override fun destroy() = recognizer.destroy()
 
     companion object {
-        fun request(language: String) = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        fun request(language: String, onDeviceOnly: Boolean = false) = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (language == VoiceSettings.MIXED) VoiceSettings.ENGLISH else language)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, onDeviceOnly)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            if (Build.VERSION.SDK_INT >= 34 && language == VoiceSettings.MIXED) {
+                putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_DETECTION, true)
+                putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_SWITCH, RecognizerIntent.LANGUAGE_SWITCH_BALANCED)
+                val languages = arrayListOf(VoiceSettings.ENGLISH, VoiceSettings.URDU)
+                putStringArrayListExtra(RecognizerIntent.EXTRA_LANGUAGE_DETECTION_ALLOWED_LANGUAGES, languages)
+                putStringArrayListExtra(RecognizerIntent.EXTRA_LANGUAGE_SWITCH_ALLOWED_LANGUAGES, languages)
+            }
         }
 
         fun mapError(code: Int): VoiceError = when (code) {
@@ -80,6 +92,7 @@ class DeviceSpeechEngine(private val context: Context, listener: SpeechEngine.Li
             SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> VoiceError.NO_SPEECH
             SpeechRecognizer.ERROR_RECOGNIZER_BUSY, SpeechRecognizer.ERROR_TOO_MANY_REQUESTS -> VoiceError.BUSY
             SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> VoiceError.LANGUAGE
+            SpeechRecognizer.ERROR_AUDIO -> VoiceError.AUDIO
             else -> VoiceError.INTERNAL
         }
     }

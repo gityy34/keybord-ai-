@@ -1,13 +1,14 @@
 # Raabta Keyboard
 
 An original Android keyboard built with Kotlin and Android's real input-method APIs. Normal typing works offline.
-The implementation covers **phase 0 and phase 1**, plus user-requested **voice typing** ahead of phase 6,
+The implementation covers **phase 0 and phase 1**, the **phase 2 customization foundation**,
+plus user-requested **voice typing** ahead of phase 6,
 of the [project requirements](docs/PROJECT_REQUIREMENTS.md).
 Android **8.0 or newer** is required.
 
 ## Install and start typing
 
-1. [Download the voice update APK (0.1.1) directly](https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-voice-0.1.1/raabta-keyboard-voice-0.1.1.apk), or obtain it from GitHub Actions below. Sign in to GitHub first if the repository is private.
+1. [Download the APK 0.2.0 (customization + voice update) directly](https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-phase-2-0.2.0/raabta-keyboard-0.2.0.apk), or obtain it from GitHub Actions below. Sign in to GitHub first if the repository is private.
 2. Open the APK on your Android phone. If Android asks, allow your browser/file manager to install this app.
 3. Open **Raabta Keyboard**.
 4. Tap **1 · Enable Raabta**, find **Raabta Keyboard**, and turn it on. Android displays its standard keyboard-access warning. Menu names vary by manufacturer.
@@ -24,12 +25,25 @@ fast typing, switching apps, and reopening/rotating the keyboard. See the full [
 The user reported successful basic phone testing on 2026-10-09. Extended app compatibility,
 rotation, offline scenarios, and sustained daily use still need specific results.
 
+## Customize your keyboard
+
+Open Raabta setup using the launcher or keyboard gear, then choose:
+
+- **Phone theme**, **Light**, or **Dark**; keyboard and setup colors follow the saved choice.
+- **Compact**, **Normal**, or **Tall** height. Landscape uses shorter rows; wide screens center the keys.
+- **Always show number row** to add digits above the letters.
+- **Vibrate on keypress** and **Sound on keypress** independently. Sound is off by default; feedback respects Android's haptic/touch-sound settings and silent mode. Missing hardware never interrupts typing.
+
+Reopen the keyboard to apply changes. Settings persist without saving typed content. Keys use native press ripples;
+held Backspace and held Shift remain supported. Changing the setup theme clears its disposable test fields.
+Phone comfort, rotation and sustained typing still need real-device acceptance; no Gboard performance parity is claimed.
+
 ## Voice typing
 
-The 0.1.1 download uses the same debug signing certificate as the delivered 0.1.0 APK and can update it
-without uninstalling. Voice recognition on the phone still needs real-device testing.
+The 0.2.0 download uses the same debug signing certificate as the delivered 0.1.0 APK and can update it
+without uninstalling. Version 0.1.1 failed its voice test on the user’s OPPO Reno 11 5G (reported Android 16), with an unsupported-language/model error. The 0.2.0 compatibility change needs another phone test; actual speech success is not yet established.
 
-1. In Raabta setup, choose **English voice** or **Urdu voice**. This changes dictation language, not the key layout.
+1. In Raabta setup, choose **English voice**, **Urdu voice**, or **English + Urdu voice** (Android 14+, provider support required). This changes dictation language, not the key layout.
 2. Focus a normal text field and tap the keyboard's microphone. If permission is missing, tap **Allow microphone**,
    grant Android's permission, return to the text field, and tap the microphone again. Permission never starts recording by itself.
 3. Speak while **Listening…** is shown. Tap **■** to stop and process, or **×** to cancel without inserting a result.
@@ -37,12 +51,12 @@ without uninstalling. Voice recognition on the phone still needs real-device tes
    or switching fields/apps cancels the session and prevents late insertion into the wrong editor.
 
 Voice is disabled in password fields, fields marked private by the host app, and non-text fields.
-Android's on-device speech recognizer is preferred where available. Otherwise the installed system speech
-service is used with an offline preference; a provider may ignore that hint and process audio online.
-English and Urdu availability depend on that service and its installed language models. Missing service,
+The installed system speech service is now the default, without forcing an offline model. It may process audio online.
+**On-device only** is an optional setup switch for Android 12+ with a supported installed language model; leave it off for the initial retest.
+English and Urdu availability depend on that service and its installed language models. Mixed mode requests automatic detection/switching between English and Urdu; the provider may not support or honor it. It is not app-level bilingual transcription, and older Android versions show a message instead of pretending to switch. Missing service,
 unsupported language, denied permission, silence, network errors, and timeouts show a message and leave typing usable.
 No typed context is sent, and the keyboard stores no recordings or transcript history.
-See [voice validation and phone checks](docs/VOICE_VALIDATION.md).
+See [voice validation and phone checks](docs/VOICE_VALIDATION.md) and [the combined customization/voice update](docs/PHASE_2_VALIDATION.md).
 
 ## Download future APKs from GitHub Actions
 
@@ -57,7 +71,7 @@ The workflow runs on pushes, pull requests, and manual dispatch. It installs Jav
 runs unit/service tests and Android lint, builds a debug APK, and uploads the APK and validation reports.
 Actions versions were checked against their current official documentation during implementation.
 Source code and the Gradle wrapper are tracked; APKs, caches, SDKs, signing keys, and local config are ignored in the development branch.
-The separate `apk-phase-1-0.1.0` and `apk-voice-0.1.1` branches contain verified APKs as direct-download fallbacks while cloud access to
+The separate `apk-phase-1-0.1.0`, `apk-voice-0.1.1`, and `apk-phase-2-0.2.0` branches contain verified APKs as direct-download fallbacks while cloud access to
 the Actions API is blocked. Future builds should use Actions artifacts or release assets.
 
 Debug builds made on different machines may use different signing keys. If an update says “App not installed”,
@@ -105,8 +119,8 @@ Android cloud backup and device transfer of app files are excluded.
 
 English QWERTY, numbers/symbols, editor actions, setup, and core typing are implemented. Basic system-aware colors
 and held Backspace are included as foundation conveniences. English/Urdu dictation is implemented using Android speech recognition.
-Urdu/Roman Urdu key layouts, prediction, emoji/clipboard, AI, translation, theme controls, and sound/haptic settings
-remain in their agreed [later phases](docs/ROADMAP.md).
+Urdu/Roman Urdu key layouts, prediction, emoji/clipboard, AI and translation remain in their agreed [later phases](docs/ROADMAP.md).
+Theme, height, number-row and sound/haptic controls are implemented; broader customization remains a future goal.
 
 Architecture and all future requirements are documented in `docs/`. Validation evidence and known limits are in
 [VALIDATION.md](docs/VALIDATION.md).

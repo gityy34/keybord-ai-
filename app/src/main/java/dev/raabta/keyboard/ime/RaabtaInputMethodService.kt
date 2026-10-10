@@ -3,6 +3,8 @@ package dev.raabta.keyboard.ime
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.os.Build
 import android.inputmethodservice.InputMethodService
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -17,6 +19,7 @@ class RaabtaInputMethodService : InputMethodService() {
     private var keyboard: KeyboardView? = null
     private var editor = EditorInfo()
     private var editorGeneration = 0
+    private var awaitingVoicePermission = false
     internal var speechEngineFactory = SpeechEngineFactory { listener -> DeviceSpeechEngine(this, listener) }
     private val voice by lazy {
         VoiceController(SpeechEngineFactory { speechEngineFactory.create(it) }, { keyboard?.setVoiceState(it) }, ::voiceError)
@@ -24,7 +27,7 @@ class RaabtaInputMethodService : InputMethodService() {
 
     override fun onCreateInputView(): View = KeyboardView(
         this, state, ::handleKey,
-        onCaps = { state.lockShift(); keyboard?.updateShift() },
+        onCaps = { voice.cancel(); state.lockShift(); keyboard?.updateShift() },
         onSettings = {
             startActivity(Intent(this, SetupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         },
@@ -35,6 +38,26 @@ class RaabtaInputMethodService : InputMethodService() {
         keyboard = it
         it.render(EditorPolicy.enterLabel(editor))
         it.setVoiceAllowed(VoicePolicy.allows(editor))
+    }
+
+    override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
+        super.onStartInputView(info, restarting)
+        if (keyboard?.matchesCurrentPreferences() == false) {
+            voice.cancel()
+            keyboard?.cancelRepeats()
+            setInputView(onCreateInputView())
+        }
+        if (awaitingVoicePermission) {
+            awaitingVoicePermission = false
+            keyboard?.showVoiceMessage(if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
+                R.string.voice_permission_granted else R.string.voice_permission_denied)
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        voice.cancel()
+        keyboard?.cancelRepeats()
+        super.onConfigurationChanged(newConfig)
     }
 
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
@@ -105,8 +128,13 @@ class RaabtaInputMethodService : InputMethodService() {
     private fun toggleVoice() {
         if (voice.active) { voice.stop(); return }
         if (!VoicePolicy.allows(editor)) { message(R.string.voice_blocked); return }
+        if (VoiceSettings.language(this) == VoiceSettings.MIXED && Build.VERSION.SDK_INT < 34) {
+            keyboard?.showVoiceMessage(R.string.voice_mixed_unsupported)
+            return
+        }
         val connection = currentInputConnection ?: return
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            awaitingVoicePermission = true
             startActivity(Intent(this, VoicePermissionActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             return
         }
@@ -120,16 +148,21 @@ class RaabtaInputMethodService : InputMethodService() {
         }
     }
 
-    private fun voiceError(error: VoiceError) = message(when (error) {
+    private fun voiceError(error: VoiceError) {
+        val text = when (error) {
         VoiceError.PERMISSION -> R.string.voice_permission_denied
         VoiceError.UNAVAILABLE -> R.string.voice_error_unavailable
         VoiceError.NETWORK -> R.string.voice_error_network
         VoiceError.NO_SPEECH -> R.string.voice_error_no_speech
         VoiceError.BUSY -> R.string.voice_error_busy
         VoiceError.LANGUAGE -> R.string.voice_error_language
+        VoiceError.AUDIO -> R.string.voice_error_audio
         VoiceError.TIMEOUT -> R.string.voice_error_timeout
         VoiceError.INTERNAL -> R.string.voice_error_internal
-    })
+        }
+        keyboard?.showVoiceMessage(text)
+        if (keyboard == null) message(text)
+    }
 
     private fun message(text: Int) { Toast.makeText(this, text, Toast.LENGTH_LONG).show() }
 }

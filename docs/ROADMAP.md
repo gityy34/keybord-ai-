@@ -7,11 +7,11 @@ It remains the source of requirements. The first delivery deliberately covers ph
 | --- | --- | --- |
 | 0 | Inspect existing repository, preserve existing work, identify build prerequisites | Inspection recorded; initial repository had one README and no project code |
 | 1 | Native Kotlin IME, English typing, Shift/Caps, symbols/numbers, setup, APK, CI | Tests/lint/build passed; basic phone functional tests passed per user report; extended device checks and hosted CI verification remain open |
-| 2 | UI refinement, explicit light/dark/system settings, haptics/sound controls, orientation and performance | Comfortable fast typing on the user's phone; measured regressions |
+| 2 | UI refinement, explicit light/dark/system settings, haptics/sound controls, orientation and performance | Controls implemented in 0.2.0; automated regression/layout checks passed; real-phone comfort, rotation and performance gate pending |
 | 3 | Urdu Unicode layout, Roman Urdu, language switch, modest local suggestions | Correct text/cursor behavior in all three modes |
 | 4 | Emoji, explicit clipboard access, suggestion strip, shortcuts | Privacy and Unicode regression checks |
 | 5 | On-demand AI toolbar; interchangeable provider layer; loading, cancel, timeout/quota errors | Provider/free-tier limits reverified at implementation time; asynchronous actions; typing stays local and responsive |
-| 6 | Device speech recognition; language-aware voice; on-device translation where supported | Voice implemented early at user request in 0.1.1; automated checks passed, phone dictation pending; translation remains pending |
+| 6 | Device speech recognition; language-aware voice; on-device translation where supported | Voice implemented in 0.1.1; phone test failed with unsupported language/model. 0.2.0 changes recognizer selection and adds provider-dependent mixed English/Urdu requests; phone retest required. Translation remains pending |
 | 7 | Private mode, sensitive-field controls, API configuration, clear-data controls | Password and sensitive-field tests; no secret/text logging; explicit upload consent |
 | 8 | End-to-end performance, app compatibility, offline/failure scenarios | Repeated real-phone testing in messaging, mail, search, notes, and other apps |
 
@@ -28,7 +28,7 @@ These do not replace the later privacy-hardening phase.
 - `EditorPolicy` maps field types and Android editor actions.
 - `SetupActivity` helps users enable/select the IME and supplies disposable test fields.
 - `VoiceController` owns cancellable speech sessions with timeouts and rejects late callbacks; `DeviceSpeechEngine` adapts Android speech recognition. Permission is requested through a separate activity and never starts recording automatically.
-- Voice language preferences store only the selected language. Recognized text passes directly to the current connection; passwords/private/non-text fields block voice. A system recognizer may process audio online when on-device recognition is unavailable.
+- Voice preferences store only the selected language and on-device-only choice. Recognized text passes directly to the current connection; passwords/private/non-text fields block voice. The default system recognizer may process audio online; on-device-only mode is an explicit opt-in.
 - No background service apart from Android's managed IME; no account, backend, AI SDK, or paid service.
 - Future AI adapters will live separately from keyboard editing. They must never execute for ordinary keystrokes.
 
@@ -57,6 +57,15 @@ Preserve the distinction between user-reported basic acceptance and unreported e
 Version 0.1.1 adds a microphone, Stop/Cancel, English/Urdu dictation settings, permission handling,
 service/error/timeout handling, and editor-lifecycle protections. All 31 tests passed, including the
 original typing regression suite, and lint/build/signature checks passed. This milestone advances the
-voice portion of phase 6; UI refinement, Urdu key layouts, AI, and translation remain pending.
-Actual audio recognition and service/language availability need phone verification using
-[VOICE_VALIDATION.md](VOICE_VALIDATION.md).
+voice portion of phase 6; at that delivery UI refinement, Urdu key layouts, AI, and translation remained pending.
+The subsequent phone voice test failed with an unsupported-language/model error. Version 0.2.0 changes recognizer selection and needs another phone test; see [PHASE_2_VALIDATION.md](PHASE_2_VALIDATION.md).
+
+## Latest user priorities (2026-10-10)
+
+The user requests Gboard-like smoothness and broad customization, and asks to limit credit/time usage.
+The voice compatibility fix and phase 2 controls are combined in 0.2.0 at the user’s explicit request.
+System/light/dark theme, keyboard height, number row and vibration/sound are implemented; held deletion
+and Caps Lock remain supported. Device rotation, physical feedback, mixed-language recognition and sustained
+typing remain phone acceptance checks. Gboard-equivalent functionality or performance is not yet established.
+
+The user requests written communication in English or Urdu, not Hindi. Mixed English + Urdu voice is requested; 0.2.0 adds Android 14+ provider-dependent language detection/switching. Urdu/Roman Urdu key layouts, suggestions, emoji/clipboard, AI, translation, glide typing and broader Gboard-like features are not delivered by this milestone.

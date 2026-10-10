@@ -120,10 +120,11 @@ class VoiceControllerTest {
         assertFalse(allows(InputType.TYPE_NULL))
     }
 
-    @Test fun recognizerRequestContainsLanguageAndOfflinePreferenceWithoutTypedContext() {
+    @Test fun recognizerRequestUsesSystemServiceByDefaultWithoutForcingOfflineOrSendingTypedContext() {
         val request = DeviceSpeechEngine.request(VoiceSettings.URDU)
         assertEquals(VoiceSettings.URDU, request.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE))
-        assertTrue(request.getBooleanExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false))
+        assertFalse(request.getBooleanExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true))
+        assertTrue(DeviceSpeechEngine.request(VoiceSettings.URDU, true).getBooleanExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false))
         assertFalse(request.getBooleanExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true))
         assertEquals(setOf(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.EXTRA_LANGUAGE,
             RecognizerIntent.EXTRA_PREFER_OFFLINE, RecognizerIntent.EXTRA_PARTIAL_RESULTS, RecognizerIntent.EXTRA_MAX_RESULTS), request.extras!!.keySet())
