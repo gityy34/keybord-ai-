@@ -84,6 +84,23 @@ class SetupActivityTest {
         controller.pause().stop().destroy()
     }
 
+    @Test fun voiceAndTimingControlsPersistExplicitUserChoices() {
+        val controller = Robolectric.buildActivity(SetupActivity::class.java).setup()
+        val activity = controller.get()
+        val root = activity.window.decorView
+        root.findViewWithTag<RadioButton>("HoldDelay:600").performClick()
+        root.findViewWithTag<RadioButton>("Repeat:120").performClick()
+        root.findViewWithTag<RadioButton>("VoicePause:0").performClick()
+        root.findViewWithTag<RadioButton>("VoiceFinish:3000").performClick()
+        root.findViewWithTag<RadioButton>("VoicePrimary:en-US").performClick()
+        assertEquals(600L, KeyboardPreferences.load(activity).holdDelayMillis)
+        assertEquals(120L, KeyboardPreferences.load(activity).repeatMillis)
+        assertEquals(0L, VoiceSettings.pauseMillis(activity))
+        assertEquals(3000L, VoiceSettings.finalWaitMillis(activity))
+        assertEquals(VoiceSettings.ENGLISH, VoiceSettings.mixedPrimary(activity))
+        controller.pause().stop().destroy()
+    }
+
     private fun findButton(view: android.view.View, text: String): Button? {
         if (view is Button && view.text.toString() == text) return view
         if (view is android.view.ViewGroup) {

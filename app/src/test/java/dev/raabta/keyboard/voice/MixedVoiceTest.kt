@@ -17,7 +17,9 @@ class MixedVoiceTest {
         val request = DeviceSpeechEngine.request(VoiceSettings.MIXED)
         assertFalse(request.getBooleanExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true))
         assertTrue(request.getBooleanExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_DETECTION, false))
-        assertEquals(RecognizerIntent.LANGUAGE_SWITCH_BALANCED, request.getStringExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_SWITCH))
+        assertEquals(RecognizerIntent.LANGUAGE_SWITCH_HIGH_PRECISION, request.getStringExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_SWITCH))
+        assertEquals(VoiceSettings.URDU, request.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE))
+        assertEquals(VoiceSettings.ENGLISH, DeviceSpeechEngine.request(VoiceSettings.MIXED, mixedPrimary = VoiceSettings.ENGLISH).getStringExtra(RecognizerIntent.EXTRA_LANGUAGE))
         assertEquals(arrayListOf(VoiceSettings.ENGLISH, VoiceSettings.URDU), request.getStringArrayListExtra(RecognizerIntent.EXTRA_LANGUAGE_SWITCH_ALLOWED_LANGUAGES))
         assertEquals(arrayListOf(VoiceSettings.ENGLISH, VoiceSettings.URDU), request.getStringArrayListExtra(RecognizerIntent.EXTRA_LANGUAGE_DETECTION_ALLOWED_LANGUAGES))
     }

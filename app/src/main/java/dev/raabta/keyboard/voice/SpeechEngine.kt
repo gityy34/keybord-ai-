@@ -17,6 +17,8 @@ interface SpeechEngine {
     fun destroy()
 
     interface Listener {
+        fun speechStarted() = Unit
+        fun partial(text: String?) = Unit
         fun processing()
         fun result(text: String?)
         fun error(error: VoiceError)
@@ -46,7 +48,7 @@ class DeviceSpeechEngine(private val context: Context, listener: SpeechEngine.Li
         }
         recognizer.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) = Unit
-            override fun onBeginningOfSpeech() = Unit
+            override fun onBeginningOfSpeech() = listener.speechStarted()
             override fun onRmsChanged(rmsdB: Float) = Unit
             override fun onBufferReceived(buffer: ByteArray?) = Unit
             override fun onEndOfSpeech() = listener.processing()
@@ -54,7 +56,9 @@ class DeviceSpeechEngine(private val context: Context, listener: SpeechEngine.Li
             override fun onResults(results: Bundle?) {
                 listener.result(results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull())
             }
-            override fun onPartialResults(partialResults: Bundle?) = Unit
+            override fun onPartialResults(partialResults: Bundle?) {
+                listener.partial(partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull())
+            }
             override fun onEvent(eventType: Int, params: Bundle?) = Unit
         })
     }
@@ -63,22 +67,26 @@ class DeviceSpeechEngine(private val context: Context, listener: SpeechEngine.Li
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             throw SecurityException("Microphone permission is required")
         }
-        recognizer.startListening(request(language, onDeviceOnly))
+        recognizer.startListening(request(language, onDeviceOnly, VoiceSettings.mixedPrimary(context), VoiceSettings.pauseMillis(context)))
     }
     override fun stop() = recognizer.stopListening()
     override fun cancel() = recognizer.cancel()
     override fun destroy() = recognizer.destroy()
 
     companion object {
-        fun request(language: String, onDeviceOnly: Boolean = false) = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        fun request(language: String, onDeviceOnly: Boolean = false, mixedPrimary: String = VoiceSettings.URDU, pauseMillis: Long = 8_000) = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (language == VoiceSettings.MIXED) VoiceSettings.ENGLISH else language)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (language == VoiceSettings.MIXED) mixedPrimary else language)
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, onDeviceOnly)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, if (pauseMillis == 0L) 30_000L else pauseMillis)
+            if (Build.VERSION.SDK_INT >= 33) {
+                putExtra(RecognizerIntent.EXTRA_ENABLE_FORMATTING, RecognizerIntent.FORMATTING_OPTIMIZE_QUALITY)
+            }
             if (Build.VERSION.SDK_INT >= 34 && language == VoiceSettings.MIXED) {
                 putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_DETECTION, true)
-                putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_SWITCH, RecognizerIntent.LANGUAGE_SWITCH_BALANCED)
+                putExtra(RecognizerIntent.EXTRA_ENABLE_LANGUAGE_SWITCH, RecognizerIntent.LANGUAGE_SWITCH_HIGH_PRECISION)
                 val languages = arrayListOf(VoiceSettings.ENGLISH, VoiceSettings.URDU)
                 putStringArrayListExtra(RecognizerIntent.EXTRA_LANGUAGE_DETECTION_ALLOWED_LANGUAGES, languages)
                 putStringArrayListExtra(RecognizerIntent.EXTRA_LANGUAGE_SWITCH_ALLOWED_LANGUAGES, languages)

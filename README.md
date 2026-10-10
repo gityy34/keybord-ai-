@@ -8,7 +8,7 @@ Android **8.0 or newer** is required.
 
 ## Install and start typing
 
-1. [Download the APK 0.2.0 (customization + voice update) directly](https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-phase-2-0.2.0/raabta-keyboard-0.2.0.apk), or obtain it from GitHub Actions below. Sign in to GitHub first if the repository is private.
+1. [Download the APK 0.2.1 (continuous dictation + timing controls) directly](https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-voice-0.2.1/raabta-keyboard-0.2.1.apk), or obtain it from GitHub Actions below. Sign in to GitHub first if the repository is private.
 2. Open the APK on your Android phone. If Android asks, allow your browser/file manager to install this app.
 3. Open **Raabta Keyboard**.
 4. Tap **1 · Enable Raabta**, find **Raabta Keyboard**, and turn it on. Android displays its standard keyboard-access warning. Menu names vary by manufacturer.
@@ -32,6 +32,7 @@ Open Raabta setup using the launcher or keyboard gear, then choose:
 - **Phone theme**, **Light**, or **Dark**; keyboard and setup colors follow the saved choice.
 - **Compact**, **Normal**, or **Tall** height. Landscape uses shorter rows; wide screens center the keys.
 - **Always show number row** to add digits above the letters.
+- **Backspace hold delay** (200/400/600 ms) and **repeat speed** (55/85/120 ms); held Shift keeps Android’s native timing.
 - **Vibrate on keypress** and **Sound on keypress** independently. Sound is off by default; feedback respects Android's haptic/touch-sound settings and silent mode. Missing hardware never interrupts typing.
 
 Reopen the keyboard to apply changes. Settings persist without saving typed content. Keys use native press ripples;
@@ -40,14 +41,15 @@ Phone comfort, rotation and sustained typing still need real-device acceptance; 
 
 ## Voice typing
 
-The 0.2.0 download uses the same debug signing certificate as the delivered 0.1.0 APK and can update it
+The 0.2.1 download uses the same debug signing certificate as the delivered 0.1.0 APK and can update it
 without uninstalling. Version 0.1.1 failed its voice test on the user’s OPPO Reno 11 5G (reported Android 16), with an unsupported-language/model error. The 0.2.0 compatibility change needs another phone test; actual speech success is not yet established.
 
 1. In Raabta setup, choose **English voice**, **Urdu voice**, or **English + Urdu voice** (Android 14+, provider support required). This changes dictation language, not the key layout.
 2. Focus a normal text field and tap the keyboard's microphone. If permission is missing, tap **Allow microphone**,
    grant Android's permission, return to the text field, and tap the microphone again. Permission never starts recording by itself.
-3. Speak while **Listening…** is shown. Tap **■** to stop and process, or **×** to cancel without inserting a result.
-4. Only the final recognized text is inserted. Ordinary typing, moving the cursor, hiding the keyboard,
+3. Speak while **Listening…** is shown. Recognition runs asynchronously and the live draft stays inside the keyboard. Short pauses and provider utterance endings do not insert it. Tap **■** to stop, or **×** to cancel and clear the draft.
+4. Choose **Only when I press Stop**, **8 seconds of silence** (default), or **12 seconds of silence** in setup. Stop gives the provider up to **0.8 seconds** to refine available text in Fast mode, or **3 seconds** in Prefer-final mode. If no draft is available, it waits up to 3 seconds; recognition or next-second insertion cannot be guaranteed without a provider result. A 5-minute session limit pauses recording and keeps its draft for explicit Stop/Cancel.
+5. Buffered recognized text is inserted once at Stop or the chosen long silence. Ordinary typing, moving the cursor, hiding the keyboard,
    or switching fields/apps cancels the session and prevents late insertion into the wrong editor.
 
 Voice is disabled in password fields, fields marked private by the host app, and non-text fields.
@@ -56,7 +58,8 @@ The installed system speech service is now the default, without forcing an offli
 English and Urdu availability depend on that service and its installed language models. Mixed mode requests automatic detection/switching between English and Urdu; the provider may not support or honor it. It is not app-level bilingual transcription, and older Android versions show a message instead of pretending to switch. Missing service,
 unsupported language, denied permission, silence, network errors, and timeouts show a message and leave typing usable.
 No typed context is sent, and the keyboard stores no recordings or transcript history.
-See [voice validation and phone checks](docs/VOICE_VALIDATION.md) and [the combined customization/voice update](docs/PHASE_2_VALIDATION.md).
+For Urdu-heavy speech choose **Urdu voice**; mixed mode now defaults to mostly Urdu with high-precision switching. You can choose mostly English in setup. Provider accuracy is not replaced by this change.
+See [continuous dictation validation](docs/CONTINUOUS_VOICE_VALIDATION.md) and [reference review/next steps](docs/KEYBOARD_REFERENCE_REVIEW.md).
 
 ## Download future APKs from GitHub Actions
 
@@ -71,7 +74,7 @@ The workflow runs on pushes, pull requests, and manual dispatch. It installs Jav
 runs unit/service tests and Android lint, builds a debug APK, and uploads the APK and validation reports.
 Actions versions were checked against their current official documentation during implementation.
 Source code and the Gradle wrapper are tracked; APKs, caches, SDKs, signing keys, and local config are ignored in the development branch.
-The separate `apk-phase-1-0.1.0`, `apk-voice-0.1.1`, and `apk-phase-2-0.2.0` branches contain verified APKs as direct-download fallbacks while cloud access to
+The separate `apk-phase-1-0.1.0`, `apk-voice-0.1.1`, and `apk-phase-2-0.2.0`, and `apk-voice-0.2.1` branches contain verified APKs as direct-download fallbacks while cloud access to
 the Actions API is blocked. Future builds should use Actions artifacts or release assets.
 
 Debug builds made on different machines may use different signing keys. If an update says “App not installed”,

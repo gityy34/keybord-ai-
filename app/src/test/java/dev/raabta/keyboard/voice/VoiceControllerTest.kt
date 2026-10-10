@@ -37,8 +37,10 @@ class VoiceControllerTest {
         engine.listener.processing()
         engine.listener.result("  سلام  ")
         engine.listener.result("duplicate")
+        assertTrue(texts.isEmpty())
+        controller.stop()
         assertEquals(listOf("سلام"), texts)
-        assertEquals(listOf(VoiceState.LISTENING, VoiceState.PROCESSING, VoiceState.IDLE), states)
+        assertEquals(listOf(VoiceState.LISTENING, VoiceState.IDLE), states)
         assertTrue(engine.destroyed)
         assertFalse(controller.active)
     }
@@ -54,6 +56,7 @@ class VoiceControllerTest {
         engines[0].listener.result("stale")
         engines[0].listener.error(VoiceError.NETWORK)
         engines[1].listener.result("current")
+        controller.stop()
         assertEquals(listOf("current"), texts)
         assertTrue(errors.isEmpty())
     }
@@ -64,6 +67,7 @@ class VoiceControllerTest {
         val controller = VoiceController(SpeechEngineFactory { Engine(it).also { e -> engine = e } }, {}, errors::add)
         controller.start(VoiceSettings.ENGLISH) { fail("No text expected") }
         engine.listener.result(" ")
+        controller.stop()
         assertEquals(listOf(VoiceError.NO_SPEECH), errors)
         controller.start(VoiceSettings.ENGLISH) { fail("No text expected") }
         engine.listener.error(VoiceError.LANGUAGE)
@@ -76,7 +80,7 @@ class VoiceControllerTest {
         val errors = mutableListOf<VoiceError>()
         val controller = VoiceController(SpeechEngineFactory { Engine(it).also { e -> engine = e } }, {}, errors::add)
         controller.start(VoiceSettings.ENGLISH) { fail("No result expected") }
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(45))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(11))
         assertEquals(listOf(VoiceError.TIMEOUT), errors)
         assertTrue(engine.destroyed)
         controller.start(VoiceSettings.ENGLISH) { fail("No result expected") }
@@ -125,11 +129,147 @@ class VoiceControllerTest {
         assertEquals(VoiceSettings.URDU, request.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE))
         assertFalse(request.getBooleanExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true))
         assertTrue(DeviceSpeechEngine.request(VoiceSettings.URDU, true).getBooleanExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false))
-        assertFalse(request.getBooleanExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true))
+        assertTrue(request.getBooleanExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false))
         assertEquals(setOf(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.EXTRA_LANGUAGE,
-            RecognizerIntent.EXTRA_PREFER_OFFLINE, RecognizerIntent.EXTRA_PARTIAL_RESULTS, RecognizerIntent.EXTRA_MAX_RESULTS), request.extras!!.keySet())
+            RecognizerIntent.EXTRA_PREFER_OFFLINE, RecognizerIntent.EXTRA_PARTIAL_RESULTS, RecognizerIntent.EXTRA_MAX_RESULTS,
+            RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS), request.extras!!.keySet())
         assertEquals(VoiceError.NO_SPEECH, DeviceSpeechEngine.mapError(SpeechRecognizer.ERROR_NO_MATCH))
         assertEquals(VoiceError.NETWORK, DeviceSpeechEngine.mapError(SpeechRecognizer.ERROR_NETWORK))
         assertEquals(VoiceError.LANGUAGE, DeviceSpeechEngine.mapError(SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED))
+    }
+
+    @Test fun shortPausesBufferUtterancesAndRestartWithoutInserting() {
+        val engines = mutableListOf<Engine>()
+        val texts = mutableListOf<String>()
+        val controller = VoiceController(SpeechEngineFactory { Engine(it).also(engines::add) }, {}, { fail("Unexpected error") })
+        controller.start(VoiceSettings.URDU, texts::add)
+        engines[0].listener.speechStarted()
+        engines[0].listener.processing()
+        engines[0].listener.result("آج")
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(3))
+        assertEquals(2, engines.size)
+        assertTrue(texts.isEmpty())
+        assertEquals(VoiceState.LISTENING, controller.state)
+        engines[1].listener.speechStarted()
+        engines[1].listener.result("موسم اچھا ہے")
+        controller.stop()
+        assertEquals(listOf("آج موسم اچھا ہے"), texts)
+    }
+
+    @Test fun stopUsesLiveDraftWithinOneSecondWhenProviderFinalIsSlow() {
+        lateinit var engine: Engine
+        val texts = mutableListOf<String>()
+        val previews = mutableListOf<String>()
+        val controller = VoiceController(SpeechEngineFactory { Engine(it).also { e -> engine = e } }, {}, { fail("Unexpected error") }, previews::add)
+        controller.start(VoiceSettings.ENGLISH, texts::add)
+        engine.listener.speechStarted()
+        engine.listener.partial("hello world")
+        assertTrue(texts.isEmpty())
+        assertEquals("hello world", previews.last())
+        controller.stop()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(800))
+        assertEquals(listOf("hello world"), texts)
+        engine.listener.result("late duplicate")
+        assertEquals(1, texts.size)
+        assertTrue(engine.destroyed)
+        assertEquals("", previews.last())
+    }
+
+    @Test fun finalResultCanRefinePartialDuringStopWithoutDuplicateInsertion() {
+        lateinit var engine: Engine
+        val texts = mutableListOf<String>()
+        val controller = VoiceController(SpeechEngineFactory { Engine(it).also { e -> engine = e } }, {}, { fail("Unexpected error") })
+        controller.start(VoiceSettings.ENGLISH, texts::add)
+        engine.listener.partial("hello")
+        controller.stop()
+        engine.listener.result("hello world")
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        assertEquals(listOf("hello world"), texts)
+    }
+
+    @Test fun manualModeNeverInsertsForAnOrdinaryLongPause() {
+        val engines = mutableListOf<Engine>()
+        val texts = mutableListOf<String>()
+        val controller = VoiceController(SpeechEngineFactory { Engine(it).also(engines::add) }, {}, {}, pauseMillis = { 0 })
+        controller.start(VoiceSettings.ENGLISH, texts::add)
+        engines[0].listener.result("draft")
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(25))
+        assertTrue(texts.isEmpty())
+        assertEquals(VoiceState.LISTENING, controller.state)
+        controller.stop()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(800))
+        assertEquals(listOf("draft"), texts)
+    }
+
+    @Test fun configuredLongSilenceInsertsOnceButShortSilenceDoesNot() {
+        val engines = mutableListOf<Engine>()
+        val texts = mutableListOf<String>()
+        val controller = VoiceController(SpeechEngineFactory { Engine(it).also(engines::add) }, {}, { fail("Unexpected error") })
+        controller.start(VoiceSettings.ENGLISH, texts::add)
+        engines[0].listener.speechStarted()
+        engines[0].listener.processing()
+        engines[0].listener.result("draft")
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(7))
+        assertTrue(texts.isEmpty())
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1800))
+        assertEquals(listOf("draft"), texts)
+        assertFalse(controller.active)
+    }
+
+    @Test fun cancellationClearsDraftAndCancelsScheduledRestart() {
+        val engines = mutableListOf<Engine>()
+        val previews = mutableListOf<String>()
+        val controller = VoiceController(SpeechEngineFactory { Engine(it).also(engines::add) }, {}, {}, previews::add)
+        controller.start(VoiceSettings.ENGLISH) { fail("Cancelled text must not insert") }
+        engines[0].listener.result("discard this")
+        controller.cancel()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        assertEquals(1, engines.size)
+        assertEquals("", previews.last())
+        assertFalse(controller.active)
+    }
+
+    @Test fun networkFailureKeepsDraftForExplicitStopWithoutContinuingRecording() {
+        lateinit var engine: Engine
+        val texts = mutableListOf<String>()
+        val errors = mutableListOf<VoiceError>()
+        val controller = VoiceController(SpeechEngineFactory { Engine(it).also { e -> engine = e } }, {}, errors::add)
+        controller.start(VoiceSettings.ENGLISH, texts::add)
+        engine.listener.partial("keep this")
+        engine.listener.error(VoiceError.NETWORK)
+        assertEquals(VoiceState.PAUSED, controller.state)
+        assertTrue(engine.destroyed)
+        assertTrue(texts.isEmpty())
+        assertEquals(listOf(VoiceError.NETWORK), errors)
+        controller.stop()
+        assertEquals(listOf("keep this"), texts)
+    }
+
+    @Test fun qualityModeAllowsDelayedFinalToReplacePartialWithoutEarlyInsertion() {
+        lateinit var engine: Engine
+        val texts = mutableListOf<String>()
+        val controller = VoiceController(SpeechEngineFactory { Engine(it).also { e -> engine = e } }, {}, {}, finalWaitMillis = { 3_000 })
+        controller.start(VoiceSettings.URDU, texts::add)
+        engine.listener.partial("غلط")
+        controller.stop()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        assertTrue(texts.isEmpty())
+        engine.listener.result("درست الفاظ")
+        assertEquals(listOf("درست الفاظ"), texts)
+    }
+
+    @Test fun sessionLimitPausesManualModeAndPreservesDraftUntilExplicitStop() {
+        lateinit var engine: Engine
+        val texts = mutableListOf<String>()
+        val controller = VoiceController(SpeechEngineFactory { Engine(it).also { e -> engine = e } }, {}, {}, pauseMillis = { 0 })
+        controller.start(VoiceSettings.ENGLISH, texts::add)
+        engine.listener.speechStarted()
+        engine.listener.partial("preserved")
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMinutes(5))
+        assertEquals(VoiceState.PAUSED, controller.state)
+        assertTrue(texts.isEmpty())
+        assertTrue(engine.destroyed)
+        controller.stop()
+        assertEquals(listOf("preserved"), texts)
     }
 }

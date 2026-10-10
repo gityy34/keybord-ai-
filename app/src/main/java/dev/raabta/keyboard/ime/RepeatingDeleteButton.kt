@@ -11,11 +11,13 @@ import android.widget.Button
 class RepeatingDeleteButton @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) : Button(context, attrs) {
     private val handler = Handler(Looper.getMainLooper())
     private var repeating = false
+    var holdDelayMillis = 400L
+    var repeatMillis = 55L
     private val repeatClick = object : Runnable {
         override fun run() {
             if (repeating) {
                 performClick()
-                handler.postDelayed(this, 55)
+                handler.postDelayed(this, repeatMillis.coerceIn(40, 150))
             }
         }
     }
@@ -30,7 +32,7 @@ class RepeatingDeleteButton @JvmOverloads constructor(context: Context, attrs: A
                 isPressed = true
                 performClick()
                 repeating = true
-                handler.postDelayed(repeatClick, 400)
+                handler.postDelayed(repeatClick, holdDelayMillis.coerceIn(200, 800))
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> cancelRepeat()
             MotionEvent.ACTION_MOVE -> if (event.x < 0 || event.y < 0 || event.x > width || event.y > height) cancelRepeat()

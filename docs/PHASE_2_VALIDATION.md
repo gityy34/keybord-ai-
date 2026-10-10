@@ -1,5 +1,9 @@
 # Customization and voice compatibility update
 
+Subsequent user feedback: the controls work and online English/Urdu recognition runs on the phone,
+but Urdu accuracy is poor and short pauses insert too early. This accepts basic 0.2.0 functionality
+while leaving voice quality/timing open. See [the 0.2.1 change](CONTINUOUS_VOICE_VALIDATION.md).
+
 Date: 2026-10-10. Version: **0.2.0** (version code 3). Source branch: `phase-2-ui`.
 
 ## User report and changes

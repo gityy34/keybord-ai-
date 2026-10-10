@@ -22,7 +22,8 @@ class RaabtaInputMethodService : InputMethodService() {
     private var awaitingVoicePermission = false
     internal var speechEngineFactory = SpeechEngineFactory { listener -> DeviceSpeechEngine(this, listener) }
     private val voice by lazy {
-        VoiceController(SpeechEngineFactory { speechEngineFactory.create(it) }, { keyboard?.setVoiceState(it) }, ::voiceError)
+        VoiceController(SpeechEngineFactory { speechEngineFactory.create(it) }, { keyboard?.setVoiceState(it) }, ::voiceError,
+            { keyboard?.showVoicePreview(it) }, { VoiceSettings.pauseMillis(this) }, { VoiceSettings.finalWaitMillis(this) })
     }
 
     override fun onCreateInputView(): View = KeyboardView(

@@ -232,7 +232,11 @@ class KeyboardView @JvmOverloads constructor(
                     setOnLongClickListener { onCaps(); true }
                 }
                 if (key is Key.Text && state.mode == KeyboardMode.LETTERS) letterButtons.add(this to key.text)
-                if (this is RepeatingDeleteButton) deleteButton = this
+                if (this is RepeatingDeleteButton) {
+                    holdDelayMillis = preferences.holdDelayMillis
+                    repeatMillis = preferences.repeatMillis
+                    deleteButton = this
+                }
             }
             val weight = when (key) {
                 Key.Space -> 4f
@@ -261,21 +265,31 @@ class KeyboardView @JvmOverloads constructor(
             VoiceState.IDLE -> R.string.keyboard_title
             VoiceState.LISTENING -> R.string.voice_listening
             VoiceState.PROCESSING -> R.string.voice_processing
+            VoiceState.PAUSED -> R.string.voice_paused
         })
-        microphone.text = if (state == VoiceState.LISTENING) "■" else "🎙"
+        microphone.text = if (state == VoiceState.LISTENING || state == VoiceState.PAUSED) "■" else "🎙"
         microphone.isEnabled = voiceAllowed && state != VoiceState.PROCESSING
         microphone.alpha = if (microphone.isEnabled) 1f else 0.4f
         microphone.contentDescription = context.getString(when {
             !voiceAllowed -> R.string.voice_blocked
-            state == VoiceState.LISTENING -> R.string.voice_stop
+            state == VoiceState.LISTENING || state == VoiceState.PAUSED -> R.string.voice_stop
             else -> R.string.voice_microphone
         })
         cancelVoice.visibility = if (state == VoiceState.IDLE) View.GONE else View.VISIBLE
     }
 
     fun showVoiceMessage(message: Int?) {
+        voiceMessage.maxLines = Int.MAX_VALUE
+        voiceMessage.ellipsize = null
         voiceMessage.visibility = if (message == null) View.GONE else View.VISIBLE
         if (message != null) voiceMessage.setText(message)
+    }
+
+    fun showVoicePreview(text: String) {
+        voiceMessage.visibility = if (text.isEmpty()) View.GONE else View.VISIBLE
+        voiceMessage.text = text.takeLast(500)
+        voiceMessage.maxLines = 3
+        voiceMessage.ellipsize = android.text.TextUtils.TruncateAt.END
     }
 
     fun matchesCurrentPreferences(): Boolean = preferences == KeyboardPreferences.load(context) && palette == Palette.from(context)

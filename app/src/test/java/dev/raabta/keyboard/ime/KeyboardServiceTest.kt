@@ -193,6 +193,8 @@ class KeyboardServiceTest {
         val speech = startVoice()
         speech.listener.result("world")
         speech.listener.result("duplicate")
+        assertEquals("hello old", editor.text.toString())
+        press("Voice")
         assertEquals("hello world", editor.text.toString())
         assertTrue(speech.destroyed)
     }
@@ -293,6 +295,38 @@ class KeyboardServiceTest {
         press("Voice")
         assertTrue(view.findViewWithTag<TextView>("VoiceMessage").text.toString().contains("Android 14"))
         type("abc")
+        assertEquals("abc", editor.text.toString())
+    }
+
+    @Test fun liveDraftIsVisibleButEditorChangesOnlyAfterStop() {
+        val speech = startVoice()
+        speech.listener.speechStarted()
+        speech.listener.partial("spoken text")
+        assertEquals("spoken text", view.findViewWithTag<TextView>("VoiceMessage").text.toString())
+        assertEquals("", editor.text.toString())
+        press("Voice")
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(800))
+        assertEquals("spoken text", editor.text.toString())
+        speech.listener.result("late text")
+        assertEquals("spoken text", editor.text.toString())
+    }
+
+    @Test fun customBackspaceHoldAndRepeatTimingControlsRealEditorDeletion() {
+        KeyboardPreferences.save(service, KeyboardPreferences(holdDelayMillis = 600, repeatMillis = 120))
+        service.onStartInputView(EditorInfo(), false)
+        view = ReflectionHelpers.getField(service, "keyboard")
+        type("abcdef")
+        val delete = view.findViewWithTag<View>("Delete")
+        delete.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 1f, 1f, 0))
+        assertEquals("abcde", editor.text.toString())
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(599))
+        assertEquals("abcde", editor.text.toString())
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1))
+        assertEquals("abcd", editor.text.toString())
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(120))
+        assertEquals("abc", editor.text.toString())
+        delete.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_CANCEL, 1f, 1f, 0))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
         assertEquals("abc", editor.text.toString())
     }
 }

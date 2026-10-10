@@ -104,6 +104,14 @@ class SetupActivity : Activity() {
             KeyboardPreferences.save(this, KeyboardPreferences.load(this).copy(sound = it))
         })
         content.addView(label(getString(R.string.feedback_help), 13f, palette.muted).apply { setPadding(0, dp(8), 0, dp(8)) })
+        content.addView(label(getString(R.string.hold_delay_title), 17f, palette.text))
+        content.addView(choiceGroup(listOf(200L to R.string.hold_fast, 400L to R.string.hold_normal, 600L to R.string.hold_slow), preferences.holdDelayMillis, "HoldDelay") {
+            KeyboardPreferences.save(this, KeyboardPreferences.load(this).copy(holdDelayMillis = it))
+        })
+        content.addView(label(getString(R.string.repeat_title), 17f, palette.text))
+        content.addView(choiceGroup(listOf(55L to R.string.repeat_fast, 85L to R.string.repeat_normal, 120L to R.string.repeat_slow), preferences.repeatMillis, "Repeat") {
+            KeyboardPreferences.save(this, KeyboardPreferences.load(this).copy(repeatMillis = it))
+        })
         content.addView(label(getString(R.string.test_heading), 22f, palette.text).apply { setPadding(0, dp(26), 0, dp(12)) })
         content.addView(testField(R.id.test_message, R.string.test_hint,
             InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE,
@@ -126,6 +134,19 @@ class SetupActivity : Activity() {
             })
         }
         content.addView(languages)
+        content.addView(label(getString(R.string.voice_pause_title), 17f, palette.text))
+        content.addView(choiceGroup(listOf(0L to R.string.voice_manual_stop, 8_000L to R.string.voice_pause_eight, 12_000L to R.string.voice_pause_twelve), VoiceSettings.pauseMillis(this), "VoicePause") {
+            VoiceSettings.setPauseMillis(this, it)
+        })
+        content.addView(label(getString(R.string.voice_finish_title), 17f, palette.text))
+        content.addView(choiceGroup(listOf(800L to R.string.voice_finish_fast, 3_000L to R.string.voice_finish_quality), VoiceSettings.finalWaitMillis(this), "VoiceFinish") {
+            VoiceSettings.setFinalWaitMillis(this, it)
+        })
+        content.addView(label(getString(R.string.voice_mixed_primary_title), 17f, palette.text))
+        content.addView(choiceGroup(listOf(VoiceSettings.URDU to R.string.voice_primary_urdu, VoiceSettings.ENGLISH to R.string.voice_primary_english), VoiceSettings.mixedPrimary(this), "VoicePrimary") {
+            VoiceSettings.setMixedPrimary(this, it)
+        })
+        content.addView(label(getString(R.string.voice_accuracy_help), 13f, palette.muted).apply { setPadding(0, dp(8), 0, dp(8)) })
         content.addView(Switch(this).apply {
             tag = "OnDeviceOnly"
             setText(R.string.voice_on_device_only)

@@ -17,7 +17,26 @@
     <string name="privacy_title">Local by default</string>
     <string name="privacy_description">Normal typing stays local. There is no analytics, typing history, or AI connection. Voice uses your phone’s speech service and may process audio online unless you choose On-device only. Recording starts only when you tap the microphone. Test fields are cleared when this screen closes.</string>
     <string name="typing_help">Tap Shift for one capital. Tap it again or hold it for Caps Lock. Hold Backspace to repeat. Use ?123 and =\&lt; for numbers and symbols. Android’s Back gesture hides the keyboard.</string>
-    <string name="version_label">0.2.0 · Themes, feedback and voice · Android 8+</string>
+    <string name="version_label">0.2.1 · Continuous voice and timing controls · Android 8+</string>
+    <string name="hold_delay_title">Hold Backspace to repeat after</string>
+    <string name="hold_fast">200 ms · Quick</string>
+    <string name="hold_normal">400 ms · Normal</string>
+    <string name="hold_slow">600 ms · Deliberate</string>
+    <string name="repeat_title">Backspace repeat speed</string>
+    <string name="repeat_fast">Fast · 55 ms</string>
+    <string name="repeat_normal">Medium · 85 ms</string>
+    <string name="repeat_slow">Slow · 120 ms</string>
+    <string name="voice_pause_title">Insert dictation after</string>
+    <string name="voice_manual_stop">Only when I press Stop</string>
+    <string name="voice_pause_eight">Stop or 8 seconds of silence</string>
+    <string name="voice_pause_twelve">Stop or 12 seconds of silence</string>
+    <string name="voice_finish_title">When I press Stop</string>
+    <string name="voice_finish_fast">Fast · use available draft after 0.8 seconds</string>
+    <string name="voice_finish_quality">Prefer final result · allow up to 3 seconds</string>
+    <string name="voice_mixed_primary_title">Main language for mixed voice</string>
+    <string name="voice_primary_urdu">Mostly Urdu</string>
+    <string name="voice_primary_english">Mostly English</string>
+    <string name="voice_accuracy_help">For an Urdu sentence, choose Urdu voice instead of mixed voice. Mixed voice defaults to mostly Urdu and requests careful switching. Recognition accuracy and final-result speed depend on the installed speech service. A live draft stays in the keyboard until Stop or your chosen long pause; short pauses do not insert it. Already recognized text is used if the service is slow to finish. A session pauses after 5 minutes; Stop can still insert its draft.</string>
     <string name="appearance_title">Make it yours</string>
     <string name="theme_system">Use phone theme</string>
     <string name="theme_light">Light theme</string>
@@ -42,6 +61,7 @@
     <string name="voice_cancel">Cancel voice typing</string>
     <string name="voice_listening">Listening…</string>
     <string name="voice_processing">Processing…</string>
+    <string name="voice_paused">Voice paused · Stop to insert</string>
     <string name="voice_permission_title">Microphone for voice typing</string>
     <string name="voice_permission_explanation">Allow microphone access, return to your text field, then tap the keyboard microphone again.</string>
     <string name="voice_permission_granted">Permission granted. Return to your text field and tap the microphone to start.</string>

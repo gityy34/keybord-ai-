@@ -69,3 +69,11 @@ and Caps Lock remain supported. Device rotation, physical feedback, mixed-langua
 typing remain phone acceptance checks. Gboard-equivalent functionality or performance is not yet established.
 
 The user requests written communication in English or Urdu, not Hindi. Mixed English + Urdu voice is requested; 0.2.0 adds Android 14+ provider-dependent language detection/switching. Urdu/Roman Urdu key layouts, suggestions, emoji/clipboard, AI, translation, glide typing and broader Gboard-like features are not delivered by this milestone.
+
+## Continuous voice milestone (0.2.1)
+
+The user reports working 0.2.0 controls and online English/Urdu transcription, with Urdu mistakes and
+premature insertion after short pauses. 0.2.1 buffers/restarts utterances, exposes manual/long-pause
+completion and fast/final-result modes, defaults mixed voice to Urdu with careful language switching,
+and adds Backspace hold/repeat timing. Actual Urdu accuracy and continuous-capture gaps remain provider-dependent
+phone checks. Next milestones and researched source limits are in [KEYBOARD_REFERENCE_REVIEW.md](KEYBOARD_REFERENCE_REVIEW.md).
