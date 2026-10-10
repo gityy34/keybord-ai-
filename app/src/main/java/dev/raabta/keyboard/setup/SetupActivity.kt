@@ -143,10 +143,6 @@ class SetupActivity : Activity() {
         content.addView(choiceGroup(listOf(800L to R.string.voice_finish_fast, 3_000L to R.string.voice_finish_quality), VoiceSettings.finalWaitMillis(this), "VoiceFinish") {
             VoiceSettings.setFinalWaitMillis(this, it)
         })
-        content.addView(label(getString(R.string.voice_mixed_primary_title), 17f, palette.text))
-        content.addView(choiceGroup(listOf(VoiceSettings.URDU to R.string.voice_primary_urdu, VoiceSettings.ENGLISH to R.string.voice_primary_english), VoiceSettings.mixedPrimary(this), "VoicePrimary") {
-            VoiceSettings.setMixedPrimary(this, it)
-        })
         content.addView(label(getString(R.string.voice_accuracy_help), 13f, palette.muted).apply { setPadding(0, dp(8), 0, dp(8)) })
         content.addView(Switch(this).apply {
             tag = "OnDeviceOnly"

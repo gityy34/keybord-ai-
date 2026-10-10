@@ -6,7 +6,7 @@ data class Candidate(val label: String, val text: String, val replace: String = 
 
 /** Small, bounded offline starter dictionary. No model download or text upload. */
 object LocalSuggestions {
-    val words = ("hello help happy happiness birthday birth love lovely good great morning night thanks thank " +
+    val words = ("heart hear heard hearing heat health healthy heaven heavy hello help happy happiness birthday birth love lovely good great morning night thanks thank " +
         "you your yes yesterday no now please people friend friends family fine food coffee tea water " +
         "home house how hope have has had want welcome world work with will would what where when why " +
         "is are am was were we they their there this that the them then today tomorrow time talk take " +
@@ -26,7 +26,8 @@ object LocalSuggestions {
     val popularEmoji = listOf("😂", "😘", "😀", "❤️", "😭", "😎", "🔥", "🎉", "😊", "🙏", "🎂", "☕", "👍", "💐", "🐱", "🐶")
     fun lastWord(text: String) = text.takeLastWhile { Character.isLetter(it) || Character.getType(it) == Character.NON_SPACING_MARK.toInt() || it == '\'' }
     fun candidates(before: String, dictionary: List<String>, wordsEnabled: Boolean, next: Boolean, emoji: Boolean,
-                   grammarEnabled: Boolean, smartReplies: Boolean): List<Candidate> {
+                   grammarEnabled: Boolean, smartReplies: Boolean, learned: List<String> = emptyList(),
+                   language: Int = 0, roman: Boolean = false): List<Candidate> {
         val word = lastWord(before)
         val lower = word.lowercase(Locale.ROOT)
         val result = mutableListOf<Candidate>()
@@ -35,9 +36,17 @@ object LocalSuggestions {
         if (grammarEnabled) grammar.entries.firstOrNull { before.lowercase(Locale.ROOT).endsWith(it.key) }
             ?.let { result.add(Candidate("Grammar: ${it.value}", it.value, before.takeLast(it.key.length))) }
         if (wordsEnabled && word.isNotEmpty()) {
+            if (roman && language == 2) RomanUrdu.candidates(word).forEach { result.add(Candidate(it, it, word)) }
+            learned.filter { !it.equals(word, true) }.forEach { result.add(Candidate(it, matchCase(word, it), word)) }
             corrections[lower]?.let { result.add(Candidate(it, matchCase(word, it), word)) }
             (dictionary + words).distinct().asSequence().filter { it.startsWith(lower, true) && !it.equals(word, true) }
-                .take(3).forEach { result.add(Candidate(it, matchCase(word, it), word)) }
+                .filter { language != 1 || it.any { c -> c in '\u0600'..'\u06ff' } }
+                .take(4).forEach { result.add(Candidate(it, matchCase(word, it), word)) }
+        }
+        if (wordsEnabled && lower.length >= 3 && result.count { !it.emoji } < 2 && language != 1) {
+            words.asSequence().filter { it.firstOrNull() == lower.firstOrNull() && kotlin.math.abs(it.length - lower.length) <= 2 }
+                .map { it to distance(lower, it) }.filter { it.second <= 1 }.sortedBy { it.second }.take(2)
+                .forEach { result.add(Candidate(it.first, matchCase(word, it.first), word)) }
         }
         if (word.isEmpty() && next) {
             val nextWords = when (finished) { "hello", "hi" -> listOf("world", "friend"); "good" -> listOf("morning", "night");
@@ -46,7 +55,16 @@ object LocalSuggestions {
         }
         if (smartReplies && word.isEmpty() && finished in listOf("hello", "hi", "سلام"))
             listOf("Hello!", "How are you?", "وعلیکم السلام").forEach { result.add(Candidate(it, it)) }
-        return result.distinctBy { it.text }.take(6)
+        return result.distinctBy { it.text }.sortedBy { if(it.emoji) 1 else 0 }.take(8)
+    }
+    private fun distance(a: String, b: String): Int {
+        var row = IntArray(b.length + 1) { it }
+        a.forEachIndexed { i, c ->
+            val next = IntArray(b.length + 1); next[0] = i + 1
+            b.forEachIndexed { j, d -> next[j + 1] = minOf(next[j] + 1, row[j + 1] + 1, row[j] + if (c == d) 0 else 1) }
+            row = next
+        }
+        return row.last()
     }
     fun matchCase(source: String, value: String) = if (source.firstOrNull()?.isUpperCase() == true) value.replaceFirstChar { it.uppercase() } else value
     fun glide(path: String, dictionary: List<String>): String? {

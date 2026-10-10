@@ -15,9 +15,9 @@
     <string name="number_hint">Try a number</string>
     <string name="password_hint">Try a password (not saved)</string>
     <string name="privacy_title">Local by default</string>
-    <string name="privacy_description">Normal typing stays local. There is no analytics, typing history, or AI connection. Voice uses your phone’s speech service and may process audio online unless you choose On-device only. Recording starts only when you tap the microphone. Test fields are cleared when this screen closes.</string>
+    <string name="privacy_description">Typing stays local. Optional learned words and recent emoji are stored on this phone; private fields are excluded. Translation runs on-device after an explicit model download; Google may collect SDK usage diagnostics. Optional AI sends only your tool draft to the provider you configure when you press Generate. Voice uses your phone’s speech service and may process audio online unless you choose On-device only. Recording starts only when you tap the microphone. Test fields are cleared when this screen closes.</string>
     <string name="typing_help">Tap Shift for one capital. Tap it again or hold it for Caps Lock. Hold Backspace to repeat. Use ?123 and =\&lt; for numbers and symbols. Android’s Back gesture hides the keyboard.</string>
-    <string name="version_label">0.3.0 · In-keyboard settings, gestures and suggestions · Android 8+</string>
+    <string name="version_label">0.4.0 · Learned words, Roman Urdu and writing tools · Android 8+</string>
     <string name="hold_delay_title">Hold Backspace to repeat after</string>
     <string name="hold_fast">200 ms · Quick</string>
     <string name="hold_normal">400 ms · Normal</string>
@@ -33,10 +33,7 @@
     <string name="voice_finish_title">When I press Stop</string>
     <string name="voice_finish_fast">Fast · use available draft after 0.8 seconds</string>
     <string name="voice_finish_quality">Prefer final result · allow up to 3 seconds</string>
-    <string name="voice_mixed_primary_title">Main language for mixed voice</string>
-    <string name="voice_primary_urdu">Mostly Urdu</string>
-    <string name="voice_primary_english">Mostly English</string>
-    <string name="voice_accuracy_help">For an Urdu sentence, choose Urdu voice instead of mixed voice. Mixed voice defaults to mostly Urdu and requests careful switching. Recognition accuracy and final-result speed depend on the installed speech service. A live draft stays in the keyboard until Stop or your chosen long pause; short pauses do not insert it. Already recognized text is used if the service is slow to finish. A session pauses after 5 minutes; Stop can still insert its draft.</string>
+    <string name="voice_accuracy_help">For an Urdu sentence, choose Urdu voice instead of mixed voice. Auto mode requests language detection and careful English/Urdu switching. Recognition accuracy and final-result speed depend on the installed speech service. A live draft stays in the keyboard until Stop or your chosen long pause; short pauses do not insert it. Already recognized text is used if the service is slow to finish. A session pauses after 5 minutes; Stop can still insert its draft.</string>
     <string name="appearance_title">Make it yours</string>
     <string name="theme_system">Use phone theme</string>
     <string name="theme_light">Light theme</string>
@@ -52,7 +49,7 @@
     <string name="voice_title">Voice typing</string>
     <string name="voice_language_english">English voice</string>
     <string name="voice_language_urdu">Urdu voice (device support required)</string>
-    <string name="voice_language_mixed">English + Urdu voice (Android 14+, provider support required)</string>
+    <string name="voice_language_mixed">Auto-detect English / Urdu (Android 14+, provider support required)</string>
     <string name="voice_mixed_unsupported">Automatic English + Urdu voice requires Android 14+ and a supporting speech provider. Choose English or Urdu separately on this phone.</string>
     <string name="voice_privacy">Tap the keyboard microphone to dictate using your phone’s system speech service. It may send audio to its provider. On-device only is optional and needs Android 12+ with a supported offline language model. If no service is available, enable or update Speech Recognition and Synthesis from Google, then select it in Android voice-input settings. No typed context is sent. Permission alone never starts recording. Voice is disabled in password, private, and non-text fields.</string>
     <string name="voice_on_device_only">On-device only (requires a supported language model)</string>
@@ -101,4 +98,8 @@
     <string name="back_to_keyboard">‹ Back to keyboard</string>
     <string name="clipboard_empty">No available clipboard content. Password fields block previews.</string>
     <string name="open_keyboard_settings">Keyboard settings</string>
+    <string name="ai_connection_save">Save connection</string>
+    <string name="ai_connection_invalid">Check the HTTPS URL, model name and token. Could not save securely.</string>
+    <string name="ai_connection_remove">Remove connection and token</string>
+    <string name="writing_draft_hint">Type here, or use selected text. Your draft stays in this box.</string>
 </resources>

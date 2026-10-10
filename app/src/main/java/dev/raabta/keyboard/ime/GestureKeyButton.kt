@@ -8,7 +8,7 @@ import android.view.ViewConfiguration
 import android.widget.Button
 
 /** One gesture owns each touch sequence; release cannot insert an accidental Space/letter. */
-class GestureKeyButton(context:Context) : Button(context) {
+class GestureKeyButton(context:Context) : androidx.appcompat.widget.AppCompatButton(context) {
     var onMoveCursor: ((Int)->Unit)? = null
     var onSymbol: (()->Unit)? = null
     var onGlideMove: ((Float,Float)->Unit)? = null
@@ -61,7 +61,7 @@ class GestureKeyButton(context:Context) : Button(context) {
 }
 
 /** Native accessibility click semantics remain available on the floating drag handle. */
-class DragHandle(context:Context):android.widget.TextView(context) {
+class DragHandle(context:Context):androidx.appcompat.widget.AppCompatTextView(context) {
     var dragEnabled=false
     var onStart:(()->Unit)?=null
     var onDrag:((Float,Float)->Unit)?=null

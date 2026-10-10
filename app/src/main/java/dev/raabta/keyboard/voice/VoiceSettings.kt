@@ -1,5 +1,6 @@
 package dev.raabta.keyboard.voice
 
+import androidx.core.content.edit
 import android.content.Context
 
 object VoiceSettings {
@@ -14,7 +15,7 @@ object VoiceSettings {
 
     fun setFinalWaitMillis(context: Context, millis: Long) {
         require(millis == 800L || millis == 3_000L)
-        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putLong("final_wait", millis).apply()
+        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit { putLong("final_wait", millis) }
     }
 
     fun pauseMillis(context: Context): Long =
@@ -22,7 +23,7 @@ object VoiceSettings {
 
     fun setPauseMillis(context: Context, millis: Long) {
         require(millis in listOf(0L, 8_000L, 12_000L))
-        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putLong("pause_millis", millis).apply()
+        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit { putLong("pause_millis", millis) }
     }
 
     fun mixedPrimary(context: Context): String =
@@ -30,14 +31,14 @@ object VoiceSettings {
 
     fun setMixedPrimary(context: Context, language: String) {
         require(language == ENGLISH || language == URDU)
-        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putString("mixed_primary", language).apply()
+        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit { putString("mixed_primary", language) }
     }
 
     fun onDeviceOnly(context: Context): Boolean =
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).getBoolean("on_device_only", false)
 
     fun setOnDeviceOnly(context: Context, enabled: Boolean) {
-        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putBoolean("on_device_only", enabled).apply()
+        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit { putBoolean("on_device_only", enabled) }
     }
 
     fun language(context: Context): String =
@@ -46,6 +47,6 @@ object VoiceSettings {
 
     fun setLanguage(context: Context, language: String) {
         require(language == ENGLISH || language == URDU || language == MIXED)
-        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putString(LANGUAGE, language).apply()
+        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit { putString(LANGUAGE, language) }
     }
 }

@@ -1245,3 +1245,16 @@ provider/app-dependent features, permissions and remaining advanced work accurat
 crashes or Gboard-equivalent performance without real-device evidence. Delivery scope and verified
 checks are recorded in SETTINGS_0.3_VALIDATION.md; later AI, online media and translation remain subject
 to the original architecture/privacy/provider requirements above.
+
+
+## User additions: learned suggestions and writing tools (0.4)
+
+- Correct suggestions collecting at the left: equal-width, centred slots; three by default and a functional 2/3/4 setting.
+- Rank and retain often-used words after three completed typing uses, in English, Urdu and Roman Urdu; local optional learning, private-field exclusions and clear control.
+- Roman Urdu layout offers Urdu-script suggestions, including `hai → ہے`; optional explicit Roman Urdu converter.
+- Backspace left swipe selects increasingly many previous words and deletes on release; reversing/cancelling keeps text; keep ordinary tap/hold deletion.
+- Keep typing responsive; refresh suggestions without reconstructing the keyboard per character.
+- Voice quick tabs: Urdu, English and Auto, replacing Mostly Urdu/Mostly English wording. Preserve Stop/manual/long-pause behaviour; provider support remains required for auto detection.
+- Translation box: Urdu ↔ English, including explicit Speak → insert translation. Download model explicitly, then translate on-device.
+- AI Write editing tools with configurable HTTPS connection. User confirmed **no provider yet; add a configurable connection**. Never bundle a secret or upload ordinary editor context.
+- Review reusable code/dependencies, licence and data handling before integration; preserve TLS verification and add dependency checksums. Do not claim a closed SDK is proven malware-free.

@@ -318,15 +318,16 @@ class KeyboardServiceTest {
         type("abcdef")
         val delete = view.findViewWithTag<View>("Delete")
         delete.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 1f, 1f, 0))
-        assertEquals("abcde", editor.text.toString())
+        // Defer the first deletion until release/hold so a swipe can select intact words.
+        assertEquals("abcdef", editor.text.toString())
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(599))
-        assertEquals("abcde", editor.text.toString())
+        assertEquals("abcdef", editor.text.toString())
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1))
-        assertEquals("abcd", editor.text.toString())
+        assertEquals("abcde", editor.text.toString())
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(120))
-        assertEquals("abc", editor.text.toString())
+        assertEquals("abcd", editor.text.toString())
         delete.dispatchTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_CANCEL, 1f, 1f, 0))
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
-        assertEquals("abc", editor.text.toString())
+        assertEquals("abcd", editor.text.toString())
     }
 }

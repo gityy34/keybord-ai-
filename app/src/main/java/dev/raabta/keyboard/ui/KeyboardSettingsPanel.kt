@@ -7,6 +7,8 @@ import android.view.Gravity
 import android.view.View
 import android.widget.*
 import dev.raabta.keyboard.voice.VoiceSettings
+import dev.raabta.keyboard.ime.LearnedWords
+import dev.raabta.keyboard.tools.AiConnection
 
 /** Hosted inside the IME view, never launches the onboarding activity. */
 class KeyboardSettingsPanel @JvmOverloads constructor(
@@ -40,6 +42,9 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
                 row("Share Raabta", "Share the APK page.") { action("share") }
                 toggle("floating", "Floating", "Compact keyboard over your app; drag its title to reposition.")
                 row("Undo", "Ask the current app to undo its last edit.") { action("edit:undo") }
+                row("Translation", "Urdu ↔ English, including voice-to-translation.") { action("translate") }
+                row("AI Write", "Rewrite, correct, shorten or continue using your chosen provider.") { action("ai") }
+                row("Roman Urdu → Urdu", "Convert common Roman Urdu words locally.") { action("roman") }
                 row("Clipboard", "Open clipboard previews.") { action("clipboard") }
             }
             "Corrections and suggestions" -> corrections()
@@ -56,6 +61,20 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
                 row("Switch language", "Use the globe key to cycle these layouts.") { action("language") }
             }
             "Voice typing" -> voice()
+            "Writing tools" -> {
+                section("Translation")
+                row("Open translation", "Type or speak Urdu and insert English; reverse direction is available.") { action("translate") }
+                note("Translation runs on-device after you explicitly download the Urdu model. Google ML Kit may send SDK usage diagnostics; your translation text is processed locally.")
+                row("Remove translation model", "Delete the downloaded Urdu model from this phone.") { action("translation_delete") }
+                section("Roman Urdu")
+                toggle("roman_suggestions", "Urdu suggestions for Roman Urdu", "In Roman Urdu layout, suggest common Urdu words such as hai → ہے.")
+                row("Convert Roman Urdu", "Common words convert offline; names and unknown words remain unchanged.") { action("roman") }
+                section("AI Write")
+                row("Open AI Write", "Review generated text before inserting it.") { action("ai") }
+                row("AI connection", "Set your trusted HTTPS backend and model. The optional token is encrypted on this device.") { action("ai:connection") }
+                row("Remove AI connection", "Clear the backend, model and encrypted token.") { action("ai:clear") }
+                note(if(AiConnection(context).ready()) "A provider is configured. Generate sends only the tool draft to it; provider fees and privacy policies apply." else "No AI provider is connected. Normal typing and local suggestions work without one.")
+            }
             "Glide typing" -> {
                 section("Gestures")
                 toggle("glide", "Glide typing", "Slide across letter keys. This offline starter recognizer matches dictionary paths.")
@@ -64,15 +83,17 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
             "Dictionary" -> {
                 section("Personal dictionary")
                 row("Add current word", "Save the word immediately before the cursor, explicitly and locally.") { action("dictionary_add"); navigate(page) }
+                toggle("learn_words", "Learn frequently typed words", "Learn a completed word after 3 uses. Local only; excludes password, private, email and URL fields.")
+                row("Clear learned words", "Remove all learned frequencies without changing your explicit dictionary.") { action("learned_clear"); navigate(page) }
                 options.dictionary().forEach { word -> row(word, "Tap to remove this word.") { options.removeWord(word); changed(); navigate(page) } }
             }
             "Privacy" -> {
                 section("Local data")
-                note("Typing and voice drafts are not saved. Your explicit dictionary words and recently chosen emoji stay on this phone. Clipboard previews expire and are never written to disk.")
-                row("Clear dictionary and recent emoji", "Also discards current clipboard previews.") { options.clearLocalData(); action("clear"); changed(); navigate(page) }
+                note("Optional learned word frequencies, explicit dictionary words and recent emoji stay on this phone. Voice and writing drafts are not saved. Clipboard previews expire. Translation text is processed on-device; Google may collect SDK diagnostics. AI sends only its draft to your chosen provider when you press Generate.")
+                row("Clear dictionary and recent emoji", "Also clears learned words and current clipboard previews.") { options.clearLocalData(); action("clear"); changed(); navigate(page) }
                 row("App permissions", "Manage microphone, optional contacts and screenshot access in Android.") { action("permissions") }
             }
-            "About" -> note("Raabta Keyboard 0.3.0\nLocal typing and suggestions; optional system voice recognition.\nSettings stay inside the keyboard. Android permission screens are system dialogs.")
+            "About" -> note("Raabta Keyboard 0.4.0\nLocal typing and suggestions; optional system voice recognition.\nSettings stay inside the keyboard. Android permission screens are system dialogs.")
             "Help and feedback" -> note("Space: tap to insert a space; slide to move the cursor.\nHold a letter for its symbol.\nTap a suggestion to insert it; emoji do not replace your word.\nUrdu voice: use Urdu-only mode for mostly Urdu phrases.\nImage paste requires an app that accepts image content.\nReport issues with the app, Android version and steps to reproduce.")
         }
     }
@@ -82,7 +103,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
             "Glide typing" to "Slide typing and Space cursor control", "Voice typing" to "Languages, Stop and long-pause behaviour",
             "Clipboard" to "Copied text, images and extracted items", "Dictionary" to "Your explicitly saved words",
             "Emojis, stickers and GIFs" to "Emoji rows, size and suggestions", "Privacy" to "Local data and permissions",
-            "About" to "Version and app information", "Help and feedback" to "Usage and troubleshooting").forEach { (title, detail) -> row(title, detail) { navigate(title) } }
+            "Writing tools" to "Translation, Roman Urdu and optional AI connection", "About" to "Version and app information", "Help and feedback" to "Usage and troubleshooting").forEach { (title, detail) -> row(title, detail) { navigate(title) } }
         row("Share Raabta", "Share the APK download page.") { action("share") }
     }
     private fun preferences() {
@@ -114,6 +135,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         toggle("flick_symbols", "Flick keys to enter symbols", "Flick upwards on a letter to insert its symbol.")
         slider("flick_sensitivity", "Flick input sensitivity", "Upward distance in dp before a symbol gesture is recognised.")
         toggle("cursor_slide", "Space cursor control", "Slide across Space to move the text cursor.")
+        toggle("delete_swipe", "Swipe Backspace to delete words", "Drag left to highlight words; release to delete. Returning to the start or cancelling keeps text.")
         section("Key tap")
         basicToggle("sound", "Sound", "Play sound when a key is pressed.", KeyboardPreferences.load(context).sound) {
             KeyboardPreferences.save(context, KeyboardPreferences.load(context).copy(sound = it)); changed()
@@ -147,7 +169,11 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         section("Suggestions")
         toggle("offensive_filter", "Don't suggest offensive words", "Exclude blocked words from dictionary and contact suggestions.")
         toggle("suggestion_strip", "Suggestion strip", "Show suggestions and access features.")
-        toggle("word_suggestions", "Word suggestions", "Show local dictionary matches in the strip.")
+        choices("Number of suggestions", listOf("2", "3", "4"), options.number("suggestion_count")-2) { options.setNumber("suggestion_count",it+2); changed() }
+        toggle("word_suggestions", "Word suggestions", "Show ranked word completions and known typo matches in balanced slots.")
+        toggle("learn_words", "Learn frequently typed words", "Suggest completed words after 3 uses. Stores word frequencies only on this phone; private fields are excluded.")
+        toggle("roman_suggestions", "Roman Urdu → Urdu suggestions", "Offer Urdu-script words when Roman Urdu layout is selected.")
+        row("Clear learned words", "Remove the local learned-word frequencies.") { action("learned_clear") }
         toggle("next_word", "Next-word suggestions", "Use common local phrases to suggest the next word.")
         toggle("emoji_suggestions", "Relevant emoji", "Suggest emoji for English, Urdu and Roman Urdu words.")
         permissionToggle("contacts", "Suggest contacts", "Suggest matching contact names locally. Requires your permission.")
@@ -175,11 +201,8 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
     }
     private fun voice() {
         section("Language")
-        choices("Voice language", listOf("English", "Urdu", "English + Urdu"), listOf(VoiceSettings.ENGLISH,VoiceSettings.URDU,VoiceSettings.MIXED).indexOf(VoiceSettings.language(context))) {
+        choices("Voice language", listOf("English", "Urdu", "Auto-detect English / Urdu"), listOf(VoiceSettings.ENGLISH,VoiceSettings.URDU,VoiceSettings.MIXED).indexOf(VoiceSettings.language(context))) {
             VoiceSettings.setLanguage(context,listOf(VoiceSettings.ENGLISH,VoiceSettings.URDU,VoiceSettings.MIXED)[it])
-        }
-        choices("Mixed mode starts with", listOf("Mostly Urdu", "Mostly English"), if (VoiceSettings.mixedPrimary(context)==VoiceSettings.URDU) 0 else 1) {
-            VoiceSettings.setMixedPrimary(context,if(it==0) VoiceSettings.URDU else VoiceSettings.ENGLISH)
         }
         section("Completion")
         choices("Insert transcription", listOf("Only when I press Stop", "After 8 seconds of silence", "After 12 seconds of silence"), listOf(0L,8000L,12000L).indexOf(VoiceSettings.pauseMillis(context))) {
@@ -189,7 +212,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
             VoiceSettings.setFinalWaitMillis(context,if(it==0) 800 else 3000)
         }
         basicToggle("on_device", "On-device only", "Requires the phone's installed language model.", VoiceSettings.onDeviceOnly(context)) { VoiceSettings.setOnDeviceOnly(context,it) }
-        note("Speech accuracy and language switching depend on the system provider. Urdu-only is recommended for mostly Urdu speech.")
+        note("Tap the microphone to show Urdu, English and Auto tabs. Auto requires Android 14+ and a supporting system provider; detection and recognition accuracy depend on that provider.")
     }
     private fun permissionToggle(key: String, title: String, detail: String) = basicToggle(key,title,detail,options.enabled(key)) {
         options.set(key,it); changed(); if(it) action("permission:$key")

@@ -42,7 +42,7 @@ class SetupActivityTest {
         assertEquals("", field.text.toString())
     }
 
-    @Test fun manifestRegistersProtectedImeAndRequestsNoNetworkPermission() {
+    @Test fun manifestProtectsImeCredentialsAndDisallowsCleartextNetwork() {
         val controller = Robolectric.buildActivity(SetupActivity::class.java).setup()
         val activity = controller.get()
         val manager = activity.packageManager
@@ -52,7 +52,10 @@ class SetupActivityTest {
         assertEquals(Manifest.permission.BIND_INPUT_METHOD, service.permission)
         assertTrue(service.exported)
         assertTrue(service.metaData.containsKey("android.view.im"))
-        assertEquals(PackageManager.PERMISSION_DENIED, manager.checkPermission(Manifest.permission.INTERNET, activity.packageName))
+        assertEquals(PackageManager.PERMISSION_GRANTED, manager.checkPermission(Manifest.permission.INTERNET, activity.packageName))
+        val connection = manager.getActivityInfo(android.content.ComponentName(activity,AiConnectionActivity::class.java),0)
+        assertFalse(connection.exported)
+        assertEquals(0,manager.getApplicationInfo(activity.packageName,0).flags and android.content.pm.ApplicationInfo.FLAG_USES_CLEARTEXT_TRAFFIC)
         controller.pause().stop().destroy()
     }
 
@@ -92,12 +95,12 @@ class SetupActivityTest {
         root.findViewWithTag<RadioButton>("Repeat:120").performClick()
         root.findViewWithTag<RadioButton>("VoicePause:0").performClick()
         root.findViewWithTag<RadioButton>("VoiceFinish:3000").performClick()
-        root.findViewWithTag<RadioButton>("VoicePrimary:en-US").performClick()
+        assertNull(root.findViewWithTag<RadioButton>("VoicePrimary:en-US"))
         assertEquals(600L, KeyboardPreferences.load(activity).holdDelayMillis)
         assertEquals(120L, KeyboardPreferences.load(activity).repeatMillis)
         assertEquals(0L, VoiceSettings.pauseMillis(activity))
         assertEquals(3000L, VoiceSettings.finalWaitMillis(activity))
-        assertEquals(VoiceSettings.ENGLISH, VoiceSettings.mixedPrimary(activity))
+        assertEquals(VoiceSettings.ENGLISH, VoiceSettings.language(activity))
         controller.pause().stop().destroy()
     }
 

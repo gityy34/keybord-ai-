@@ -1,5 +1,7 @@
 package dev.raabta.keyboard.ime
 
+import androidx.core.graphics.createBitmap
+import androidx.core.net.toUri
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Context
@@ -40,10 +42,10 @@ class LocalMediaProvider:ContentProvider() {
             require(kind in listOf("sticker","anim") && shape in listOf("smile","heart"))
             val file=File(context.cacheDir,"media/$kind-$shape.${if(kind=="anim") "gif" else "png"}")
             file.parentFile!!.mkdirs()
-            if(file.exists() && file.length()>0) return Uri.parse("content://${context.packageName}.media/${file.name}")
+            if(file.exists() && file.length()>0) return "content://${context.packageName}.media/${file.name}".toUri()
             val temporary=File(file.parentFile,file.name+".tmp")
             if(kind=="anim") temporary.writeBytes(gif(shape)) else {
-                val image=Bitmap.createBitmap(256,256,Bitmap.Config.ARGB_8888)
+                val image=createBitmap(256,256)
                 val c=Canvas(image); val p=Paint(Paint.ANTI_ALIAS_FLAG)
                 if(shape=="smile") {
                     p.color=Color.rgb(255,193,45); c.drawCircle(128f,128f,108f,p)
@@ -59,7 +61,7 @@ class LocalMediaProvider:ContentProvider() {
                 temporary.outputStream().use { check(image.compress(Bitmap.CompressFormat.PNG,100,it)) }; image.recycle()
             }
             check(temporary.renameTo(file))
-            return Uri.parse("content://${context.packageName}.media/${file.name}")
+            return "content://${context.packageName}.media/${file.name}".toUri()
         }
         /** GIF89a, two looping frames, original four-colour pixel art. Fixed-size clear/pixel LZW codes. */
         fun gif(shape:String):ByteArray {

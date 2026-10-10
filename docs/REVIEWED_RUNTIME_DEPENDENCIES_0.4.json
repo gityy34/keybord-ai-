@@ -1,0 +1,72 @@
+[
+  {
+    "coordinate": "com.google.android.datatransport:transport-api:2.2.1@aar",
+    "source": "https://dl.google.com/dl/android/maven2/com/google/android/datatransport/transport-api/2.2.1/transport-api-2.2.1.aar",
+    "sha256": "e62f73ba1c7f5d15f5d86d8e9a298c42ccd0648e7ce60b9e312f2ecd123b5ed0"
+  },
+  {
+    "coordinate": "com.google.android.datatransport:transport-backend-cct:2.3.3@aar",
+    "source": "https://dl.google.com/dl/android/maven2/com/google/android/datatransport/transport-backend-cct/2.3.3/transport-backend-cct-2.3.3.aar",
+    "sha256": "b22a14d560a590dc875e902424b29a13a02d1faf297b7c39a9007967ffadccbd"
+  },
+  {
+    "coordinate": "com.google.android.datatransport:transport-runtime:2.2.6@aar",
+    "source": "https://dl.google.com/dl/android/maven2/com/google/android/datatransport/transport-runtime/2.2.6/transport-runtime-2.2.6.aar",
+    "sha256": "d83ad23c134429691161c92476a3c83df236cd1f8badbfd4f00723b4eccd741c"
+  },
+  {
+    "coordinate": "com.google.android.gms:play-services-base:18.5.0@aar",
+    "source": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-base/18.5.0/play-services-base-18.5.0.aar",
+    "sha256": "59a5c0c2da12311d75d965ce1f419498536b1a167fb28ff7dfc2dfd9cefa4157"
+  },
+  {
+    "coordinate": "com.google.android.gms:play-services-basement:18.4.0@aar",
+    "source": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-basement/18.4.0/play-services-basement-18.4.0.aar",
+    "sha256": "ce5c936fd66814b3602f5c6a5e929911ff973d4b05f6de9996da596bef97cad2"
+  },
+  {
+    "coordinate": "com.google.android.gms:play-services-tasks:18.2.0@aar",
+    "source": "https://dl.google.com/dl/android/maven2/com/google/android/gms/play-services-tasks/18.2.0/play-services-tasks-18.2.0.aar",
+    "sha256": "7f2aaa8f502068eaf54356ca92aec04271d6e7c416c52c45c0d23440fcbd1654"
+  },
+  {
+    "coordinate": "com.google.firebase:firebase-annotations:16.0.0@jar",
+    "source": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-annotations/16.0.0/firebase-annotations-16.0.0.jar",
+    "sha256": "8830f2e8a5e434cbc5e4bd18133073b6e8518a8ce8ec2ce6f3b273c91d9664c2"
+  },
+  {
+    "coordinate": "com.google.firebase:firebase-components:16.1.0@aar",
+    "source": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-components/16.1.0/firebase-components-16.1.0.aar",
+    "sha256": "82e91aa5ed186eedaf1f2210f5d241ba6e4456cf0c32949d5cdbe152b0e2e88b"
+  },
+  {
+    "coordinate": "com.google.firebase:firebase-encoders-json:17.1.0@aar",
+    "source": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-encoders-json/17.1.0/firebase-encoders-json-17.1.0.aar",
+    "sha256": "8295c755bcadc87a2aaee5b9e568f27fd138fd45ff1159a8ee747cf4c3a38d85"
+  },
+  {
+    "coordinate": "com.google.firebase:firebase-encoders:16.1.0@jar",
+    "source": "https://dl.google.com/dl/android/maven2/com/google/firebase/firebase-encoders/16.1.0/firebase-encoders-16.1.0.jar",
+    "sha256": "8f89a74298bbccc2c543385208a2f0c67f603ce67e6ec21cc772e98e688f7cf5"
+  },
+  {
+    "coordinate": "com.google.mlkit:common:18.11.0@aar",
+    "source": "https://dl.google.com/dl/android/maven2/com/google/mlkit/common/18.11.0/common-18.11.0.aar",
+    "sha256": "66408a08dbb2465687ff5dd0c8f6410b56549ce3ecf449d9096f3712282131d0"
+  },
+  {
+    "coordinate": "com.google.mlkit:translate:17.0.3@aar",
+    "source": "https://dl.google.com/dl/android/maven2/com/google/mlkit/translate/17.0.3/translate-17.0.3.aar",
+    "sha256": "b6194f7b42034309cf8299784b2d5d70a82a2e9287fbe1650dea4d1f3ad1fe55"
+  },
+  {
+    "coordinate": "com.squareup.okhttp3:okhttp:4.12.0@jar",
+    "source": "https://repo.maven.apache.org/maven2/com/squareup/okhttp3/okhttp/4.12.0/okhttp-4.12.0.jar",
+    "sha256": "b1050081b14bb7a3a7e55a4d3ef01b5dcfabc453b4573a4fc019767191d5f4e0"
+  },
+  {
+    "coordinate": "com.squareup.okio:okio-jvm:3.6.0@jar",
+    "source": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.6.0/okio-jvm-3.6.0.jar",
+    "sha256": "67543f0736fc422ae927ed0e504b98bc5e269fda0d3500579337cb713da28412"
+  }
+]

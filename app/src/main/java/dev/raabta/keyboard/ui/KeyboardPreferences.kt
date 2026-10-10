@@ -1,5 +1,6 @@
 package dev.raabta.keyboard.ui
 
+import androidx.core.content.edit
 import android.content.Context
 
 enum class KeyboardTheme { SYSTEM, LIGHT, DARK }
@@ -28,11 +29,11 @@ data class KeyboardPreferences(
         }
 
         fun save(context: Context, preferences: KeyboardPreferences) {
-            store(context).edit().putString("theme", preferences.theme.name).putString("height", preferences.height.name)
+            store(context).edit { putString("theme", preferences.theme.name).putString("height", preferences.height.name)
                 .putBoolean("number_row", preferences.numberRow).putBoolean("vibration", preferences.vibration)
                 .putBoolean("sound", preferences.sound)
                 .putLong("hold_delay", preferences.holdDelayMillis.coerceIn(200, 800))
-                .putLong("repeat_interval", preferences.repeatMillis.coerceIn(40, 150)).apply()
+                .putLong("repeat_interval", preferences.repeatMillis.coerceIn(40, 150)) }
         }
     }
 }

@@ -11,8 +11,17 @@ android {
         applicationId = "dev.raabta.keyboard"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.3.0"
+        versionCode = 6
+        versionName = "0.4.0"
+    }
+    // Ship a small ARM64 phone APK while retaining universal/ChromeOS builds.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            isUniversalApk = true
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -32,6 +41,9 @@ android {
 }
 
 dependencies {
+    implementation("com.google.mlkit:translate:17.0.3")
+    // ML Kit declares an old OkHttp; resolve the maintained TLS implementation instead.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
 }

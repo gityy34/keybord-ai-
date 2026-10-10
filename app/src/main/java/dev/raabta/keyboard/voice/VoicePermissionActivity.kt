@@ -1,5 +1,6 @@
 package dev.raabta.keyboard.voice
 
+import androidx.core.net.toUri
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
@@ -46,7 +47,7 @@ class VoicePermissionActivity : Activity() {
             setText(R.string.voice_permission_settings)
             isAllCaps = false
             setOnClickListener {
-                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
             }
         })
         content.addView(Button(this).apply {

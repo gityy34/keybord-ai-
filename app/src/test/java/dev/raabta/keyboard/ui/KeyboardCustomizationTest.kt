@@ -111,7 +111,7 @@ class KeyboardCustomizationTest {
             if (view is Button) {
                 val bounds = Rect(0, 0, view.width, view.height)
                 root.offsetDescendantRectToMyCoords(view, bounds)
-                assertTrue("Key outside keyboard: ${view.tag}", bounds.left >= 0 && bounds.top >= 0 && bounds.right <= root.width && bounds.bottom <= root.height)
+                assertTrue("Key outside keyboard: ${view.tag}, $bounds in ${root.width}×${root.height}", bounds.left >= 0 && bounds.top >= 0 && bounds.right <= root.width && bounds.bottom <= root.height)
                 assertTrue(view.width > 0 && view.height > 0)
                 assertFalse(view.isSoundEffectsEnabled)
             }
