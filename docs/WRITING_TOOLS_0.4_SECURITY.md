@@ -35,3 +35,5 @@ Drafts/results stay in memory and clear on close, editor change, hiding or teard
 ## Verified limits and phone gates
 
 This is a source/dependency/manifest review with regression tests, not a full independent malware audit or a live provider penetration test. Automated network tests use a controlled HTTPS transport; no real AI provider is configured. Android Keystore encryption and model translation quality require phone verification. The ARM64 translation library's ELF LOAD segments have `0x4000` (16 KiB) alignment; APK alignment/signature checks are recorded in validation. No package scanners or unknown GitHub binaries were executed.
+
+The SDK explicit initializer was inspected for repeat-call behaviour. A synchronized initialize-once wrapper prevents its already-initialized exception on subsequent download/conversion/model-removal actions. The real SDK initialization and two translator creations/closures are exercised in a regression test without downloading models; translation text/quality remains a phone gate.

@@ -16,7 +16,7 @@ interface TranslationEngine {
 class LocalTranslation(context: Context, source: String, target: String): TranslationEngine {
     private val client: Translator
     init {
-        MlKit.initialize(context.applicationContext)
+        initializeOnce(context)
         client = Translation.getClient(TranslatorOptions.Builder().setSourceLanguage(source).setTargetLanguage(target).build())
     }
     override fun download(done: (Boolean) -> Unit) {
@@ -28,8 +28,16 @@ class LocalTranslation(context: Context, source: String, target: String): Transl
     }
     override fun close() = client.close()
     companion object {
+        private var initialized = false
+        @Synchronized internal fun initializeOnce(context: Context) {
+            // The SDK's explicit initializer rejects a second initialization in one process.
+            if (!initialized) {
+                MlKit.initialize(context.applicationContext)
+                initialized = true
+            }
+        }
         fun deleteModels(context: Context, done: (Boolean) -> Unit) {
-            MlKit.initialize(context.applicationContext)
+            initializeOnce(context)
             RemoteModelManager.getInstance().deleteDownloadedModel(TranslateRemoteModel.Builder(TranslateLanguage.URDU).build())
                 .addOnSuccessListener { done(true) }.addOnFailureListener { done(false) }
         }

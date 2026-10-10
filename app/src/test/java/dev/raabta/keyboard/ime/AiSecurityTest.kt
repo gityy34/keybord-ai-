@@ -14,6 +14,15 @@ import javax.net.ssl.HttpsURLConnection
 @RunWith(org.robolectric.RobolectricTestRunner::class)
 @Config(sdk=[28])
 class AiSecurityTest {
+    @Test fun explicitTranslationInitializationIsSafeToRepeatWithoutDownloadingModels() {
+        val context=RuntimeEnvironment.getApplication()
+        LocalTranslation.initializeOnce(context)
+        LocalTranslation.initializeOnce(context)
+        val first=LocalTranslation(context,"ur","en")
+        val second=LocalTranslation(context,"en","ur")
+        first.close(); second.close()
+        assertSame(context,com.google.mlkit.common.sdkinternal.MlKitContext.getInstance().applicationContext)
+    }
     private class Transport(private val code:Int=200,private val response:String="{\"choices\":[{\"message\":{\"content\":\"Improved\"}}]}"):HttpsURLConnection(URL("https://example.org/v1/chat/completions")) {
         val sent=ByteArrayOutputStream()
         var disconnected=false

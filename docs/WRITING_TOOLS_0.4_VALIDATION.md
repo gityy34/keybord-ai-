@@ -4,10 +4,10 @@
 
 - Source branch: `keyboard-tools-0.4.0`; no changes merged to main.
 - Command: `source scripts/cloud-env.sh` then `./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug`.
-- Final run: **114 executed/passed, zero failures/errors/skips; Android lint zero issues; build successful**. Android framework simulations use SDK 28 and 34. These are not physical-device performance benchmarks.
+- Final run: **115 executed/passed, zero failures/errors/skips; Android lint zero issues; build successful**. Android framework simulations use SDK 28 and 34. These are not physical-device performance benchmarks.
 - Version: **0.4.0**, code **6**, package `dev.raabta.keyboard`, Android 8+ / target 35.
-- Published phone artifact: `raabta-keyboard-0.4.0.apk`, **ARM64**, suitable for OPPO Reno 11 5G; **21209887 bytes**. Build also generates ARMv7/x86/x86_64 and a universal APK. CI uploads the universal APK/checksum.
-- SHA-256: `bd6bd270fe3a58f11693933a5b753fdb94086b3c6b6a948d1f798fc0c5f9abea`.
+- Published phone artifact: `raabta-keyboard-0.4.0.apk`, **ARM64**, suitable for OPPO Reno 11 5G; **21341411 bytes**. Build also generates ARMv7/x86/x86_64 and a universal APK. CI uploads the universal APK/checksum.
+- SHA-256: `d124e7b190c6bb3570f6f33c93526e57c0900b07c711ccfb09c2be4854c0e5e0`.
 - APK v2 signature verified with retained certificate SHA-256 `fa7096ff0c83f98bbbbceab4d223a6e2eaff8b9a6c162350f3f36c8b220ad045`. Install over the previously delivered APK; no uninstall is required for these builds.
 - `zipalign -c -P 16 -v 4` passed; ARM64 native translation ELF LOAD alignment is `0x4000`. Google translator model download is separate from the APK.
 - Delivery branch: `apk-tools-0.4.0`. Direct link: https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-tools-0.4.0/raabta-keyboard-0.4.0.apk
