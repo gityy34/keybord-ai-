@@ -1,5 +1,7 @@
 # Keyboard reference review and next steps
 
+Historical 0.2.1 review. Current screenshot-based 0.3.0 implementation and acceptance limits are recorded in [SETTINGS_0.3_VALIDATION.md](SETTINGS_0.3_VALIDATION.md).
+
 Date: 2026-10-10. The user clarified the requested AI keyboard name as **Clever AI Keyboard**.
 It is not assumed to be FlorisBoard. Its exact store listing/source repository was not verified.
 

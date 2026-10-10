@@ -1218,3 +1218,30 @@ Start by inspecting the connected repository and then begin **Phase 0 / Phase 1*
 Do not only give me another plan.
 
 Perform the repository work that is possible now.
+
+## Screenshot requirements update — 2026-10-10
+
+The user supplied Gboard feature/preferences/corrections/emoji/clipboard screenshots (110670, 110668,
+110656, 110658, 110661, 110660, 110667) as functional references. Keep the original implementation and
+branding; adopt clear category navigation with section headings, descriptions and working controls.
+Keyboard gear must open settings in the current keyboard instead of launching enable/test onboarding.
+Android’s settings entry must open category settings; settings subpages should share one navigation flow.
+
+Explicit priorities: Space-bar horizontal sliding moves the cursor through existing text; relevant emoji
+for English, Urdu and Roman Urdu appear together with word suggestions in one strip. Preserve normal
+Space taps, protect Unicode cursor boundaries, keep ordinary typing local and avoid pauses/crashes.
+
+Requested controls: key/number-row visibility; font and emoji size/defaults; suggestion strip;
+one-handed/resize/floating; double-space punctuation, auto-space and apostrophe switching; held/flick
+symbols and flick sensitivity; sound/volume, haptics/strength, popup and hold duration; app-icon visibility.
+Correction settings: auto-correction/capitalisation, spelling/grammar marking, offensive filtering, word/
+next-word/contact suggestions and smart replies. Emoji settings: fast/recent access row, symbols row,
+size and contextual emoji. Clipboard settings: copied text/image preview, extracted addresses/phone/items,
+recent screenshot previews with explicit Android permission. Toolbar: theme, resize, emoji, one-handed,
+editing, sharing, floating and undo. Preserve earlier voice settings and lifecycle safeguards.
+
+Implement actual behaviour for controls, not placeholder toggles. Describe small local dictionaries/rules,
+provider/app-dependent features, permissions and remaining advanced work accurately. No claim of zero
+crashes or Gboard-equivalent performance without real-device evidence. Delivery scope and verified
+checks are recorded in SETTINGS_0.3_VALIDATION.md; later AI, online media and translation remain subject
+to the original architecture/privacy/provider requirements above.

@@ -25,6 +25,7 @@ class KeyboardState {
         }
     }
 
+    fun setAutomaticShift(enabled:Boolean) { if(shift!=ShiftMode.LOCKED) shift=if(enabled) ShiftMode.ONCE else ShiftMode.OFF }
     fun lockShift() { shift = ShiftMode.LOCKED }
     fun selectMode(mode: KeyboardMode) { this.mode = mode }
     fun afterCharacter() { if (shift == ShiftMode.ONCE) shift = ShiftMode.OFF }

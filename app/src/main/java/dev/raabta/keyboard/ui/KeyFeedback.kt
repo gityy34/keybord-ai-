@@ -16,10 +16,15 @@ interface FeedbackDevice {
 private class AndroidFeedbackDevice(context: Context) : FeedbackDevice {
     private val audio = context.getSystemService(AudioManager::class.java)
     private val resolver = context.contentResolver
+    private val options = KeyboardOptions(context)
+    private val vibrator = context.getSystemService(android.os.Vibrator::class.java)
 
+    @Suppress("DEPRECATION")
     override fun vibrate(view: View) {
-        // Android honors device haptic settings; no VIBRATE permission or forced feedback.
-        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        // Honor device haptic settings and use the requested short vibration duration.
+        if (Settings.System.getInt(resolver, Settings.System.HAPTIC_FEEDBACK_ENABLED, 1) != 0 && vibrator?.hasVibrator() == true)
+            vibrator.vibrate(android.os.VibrationEffect.createOneShot(options.number("vibration_strength").toLong(), android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+        else view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
     }
 
     override fun sound(key: FeedbackKey) {
@@ -30,7 +35,7 @@ private class AndroidFeedbackDevice(context: Context) : FeedbackDevice {
             FeedbackKey.SPACE -> AudioManager.FX_KEYPRESS_SPACEBAR
             FeedbackKey.DELETE -> AudioManager.FX_KEYPRESS_DELETE
             FeedbackKey.ENTER -> AudioManager.FX_KEYPRESS_RETURN
-        })
+        }, options.number("sound_volume") / 100f)
     }
 }
 

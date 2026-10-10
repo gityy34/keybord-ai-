@@ -17,7 +17,7 @@
     <string name="privacy_title">Local by default</string>
     <string name="privacy_description">Normal typing stays local. There is no analytics, typing history, or AI connection. Voice uses your phone’s speech service and may process audio online unless you choose On-device only. Recording starts only when you tap the microphone. Test fields are cleared when this screen closes.</string>
     <string name="typing_help">Tap Shift for one capital. Tap it again or hold it for Caps Lock. Hold Backspace to repeat. Use ?123 and =\&lt; for numbers and symbols. Android’s Back gesture hides the keyboard.</string>
-    <string name="version_label">0.2.1 · Continuous voice and timing controls · Android 8+</string>
+    <string name="version_label">0.3.0 · In-keyboard settings, gestures and suggestions · Android 8+</string>
     <string name="hold_delay_title">Hold Backspace to repeat after</string>
     <string name="hold_fast">200 ms · Quick</string>
     <string name="hold_normal">400 ms · Normal</string>
@@ -97,4 +97,8 @@
     <string name="key_numbers">\?123</string>
     <string name="key_symbols">=\&lt;</string>
     <string name="key_digits">123</string>
+    <string name="setting_value">%1$s · %2$d</string>
+    <string name="back_to_keyboard">‹ Back to keyboard</string>
+    <string name="clipboard_empty">No available clipboard content. Password fields block previews.</string>
+    <string name="open_keyboard_settings">Keyboard settings</string>
 </resources>

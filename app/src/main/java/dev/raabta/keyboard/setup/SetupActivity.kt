@@ -76,6 +76,7 @@ class SetupActivity : Activity() {
             getSystemService(InputMethodManager::class.java).showInputMethodPicker()
         }
         content.addView(picker)
+        content.addView(action(R.string.open_keyboard_settings) { startActivity(Intent(this,KeyboardSettingsActivity::class.java)) })
         content.addView(label(getString(R.string.appearance_title), 22f, palette.text).apply { setPadding(0, dp(24), 0, dp(8)) })
         val preferences = KeyboardPreferences.load(this)
         content.addView(choiceGroup(listOf(

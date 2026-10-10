@@ -77,3 +77,17 @@ premature insertion after short pauses. 0.2.1 buffers/restarts utterances, expos
 completion and fast/final-result modes, defaults mixed voice to Urdu with careful language switching,
 and adds Backspace hold/repeat timing. Actual Urdu accuracy and continuous-capture gaps remain provider-dependent
 phone checks. Next milestones and researched source limits are in [KEYBOARD_REFERENCE_REVIEW.md](KEYBOARD_REFERENCE_REVIEW.md).
+
+
+## Screenshot settings and local tools milestone (0.3.0)
+
+Category settings now run in the keyboard; Android settings has a dedicated category entry. Original
+onboarding stays for enable/select/test. Adds Space cursor slide, a stable suggestion strip, local emoji/
+word/phrase/rule suggestions, opt-in typo correction, Urdu/Roman Urdu layouts, held/flick symbol controls,
+font/emoji size, feedback intensities, one-handed/floating layouts, editor tools, optional current clipboard/
+contact/screenshot previews and an original offline sticker/GIF pack. No Gboard application source/assets
+were copied. See SETTINGS_0.3_VALIDATION.md for per-feature scope, checks and phone gate.
+
+Phase 3/4 foundations are advanced; they are not complete acceptance claims. Expand dictionaries and
+swipe recognition using licensed resources, test host compatibility and device latency, and then add
+optional translation/AI/online media providers. Existing voice recognition still relies on phone models.

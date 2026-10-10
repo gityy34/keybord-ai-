@@ -1,0 +1,237 @@
+package dev.raabta.keyboard.ui
+
+import android.content.Context
+import android.content.ComponentName
+import android.content.pm.PackageManager
+import android.view.Gravity
+import android.view.View
+import android.widget.*
+import dev.raabta.keyboard.voice.VoiceSettings
+
+/** Hosted inside the IME view, never launches the onboarding activity. */
+class KeyboardSettingsPanel @JvmOverloads constructor(
+    context: Context, private val page: String = "Raabta settings", private val navigate: (String) -> Unit = {},
+    private val changed: () -> Unit = {}, private val action: (String) -> Unit = {},
+) : LinearLayout(context) {
+    private val options = KeyboardOptions(context)
+    private val palette = Palette.from(context)
+    private val body = LinearLayout(context).apply { orientation = VERTICAL; setPadding(context.dp(18), 0, context.dp(18), context.dp(12)) }
+    init {
+        orientation = VERTICAL
+        tag = "SettingsPanel"
+        setBackgroundColor(palette.background)
+        val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(palette.surface) }
+        header.addView(Button(context).apply {
+            text = "‹"; contentDescription = "Back"; tag = "SettingsBack"
+            setTextColor(palette.text); setOnClickListener { navigate(if (page == "Raabta settings") "" else "Raabta settings") }
+        }, LayoutParams(context.dp(52), context.dp(52)))
+        header.addView(label(page, 21f), LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        addView(header)
+        addView(ScrollView(context).apply { addView(body) }, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
+        when (page) {
+            "Raabta settings" -> home()
+            "Preferences" -> preferences()
+            "Tools" -> {
+                row("Theme", "Choose keyboard colours.") { navigate("Theme") }
+                row("Resize", "Choose keyboard height.") { navigate("Preferences") }
+                row("Emoji", "Open the emoji picker.") { action("emoji") }
+                row("One-handed", "Choose left or right in Preferences.") { navigate("Preferences") }
+                row("Text editing", "Move, select, copy, cut or paste text.") { action("editing") }
+                row("Share Raabta", "Share the APK page.") { action("share") }
+                toggle("floating", "Floating", "Compact keyboard over your app; drag its title to reposition.")
+                row("Undo", "Ask the current app to undo its last edit.") { action("edit:undo") }
+                row("Clipboard", "Open clipboard previews.") { action("clipboard") }
+            }
+            "Corrections and suggestions" -> corrections()
+            "Emojis, stickers and GIFs" -> emoji()
+            "Clipboard" -> clipboard()
+            "Theme" -> choices("Theme", KeyboardTheme.entries.map { it.name.lowercase().replaceFirstChar(Char::uppercase) }, KeyboardPreferences.load(context).theme.ordinal) {
+                KeyboardPreferences.save(context, KeyboardPreferences.load(context).copy(theme = KeyboardTheme.entries[it])); changed()
+            }
+            "Languages" -> {
+                section("Keyboard layouts")
+                choices("Layout", listOf("English (QWERTY)", "Urdu (اردو)", "Roman Urdu (QWERTY)"), context.getSharedPreferences("keyboard_options", 0).getInt("language", 0)) {
+                    options.setNumber("language", it); changed()
+                }
+                row("Switch language", "Use the globe key to cycle these layouts.") { action("language") }
+            }
+            "Voice typing" -> voice()
+            "Glide typing" -> {
+                section("Gestures")
+                toggle("glide", "Glide typing", "Slide across letter keys. This offline starter recognizer matches dictionary paths.")
+                toggle("cursor_slide", "Space cursor control", "Slide left or right on Space to move through text.")
+            }
+            "Dictionary" -> {
+                section("Personal dictionary")
+                row("Add current word", "Save the word immediately before the cursor, explicitly and locally.") { action("dictionary_add"); navigate(page) }
+                options.dictionary().forEach { word -> row(word, "Tap to remove this word.") { options.removeWord(word); changed(); navigate(page) } }
+            }
+            "Privacy" -> {
+                section("Local data")
+                note("Typing and voice drafts are not saved. Your explicit dictionary words and recently chosen emoji stay on this phone. Clipboard previews expire and are never written to disk.")
+                row("Clear dictionary and recent emoji", "Also discards current clipboard previews.") { options.clearLocalData(); action("clear"); changed(); navigate(page) }
+                row("App permissions", "Manage microphone, optional contacts and screenshot access in Android.") { action("permissions") }
+            }
+            "About" -> note("Raabta Keyboard 0.3.0\nLocal typing and suggestions; optional system voice recognition.\nSettings stay inside the keyboard. Android permission screens are system dialogs.")
+            "Help and feedback" -> note("Space: tap to insert a space; slide to move the cursor.\nHold a letter for its symbol.\nTap a suggestion to insert it; emoji do not replace your word.\nUrdu voice: use Urdu-only mode for mostly Urdu phrases.\nImage paste requires an app that accepts image content.\nReport issues with the app, Android version and steps to reproduce.")
+        }
+    }
+    private fun home() {
+        listOf("Languages" to "English, Urdu and Roman Urdu", "Preferences" to "Keys, size, layout, shortcuts and feedback",
+            "Theme" to "System, light or dark", "Corrections and suggestions" to "Local words, emoji and correction controls",
+            "Glide typing" to "Slide typing and Space cursor control", "Voice typing" to "Languages, Stop and long-pause behaviour",
+            "Clipboard" to "Copied text, images and extracted items", "Dictionary" to "Your explicitly saved words",
+            "Emojis, stickers and GIFs" to "Emoji rows, size and suggestions", "Privacy" to "Local data and permissions",
+            "About" to "Version and app information", "Help and feedback" to "Usage and troubleshooting").forEach { (title, detail) -> row(title, detail) { navigate(title) } }
+        row("Share Raabta", "Share the APK download page.") { action("share") }
+    }
+    private fun preferences() {
+        section("Keys")
+        basicToggle("number_row", "Number row", "Always show numbers above the letter keys.", KeyboardPreferences.load(context).numberRow) {
+            KeyboardPreferences.save(context, KeyboardPreferences.load(context).copy(numberRow = it)); changed()
+        }
+        toggle("symbols_number_row", "Number row for symbols", "Show the number row in the first symbols layout.")
+        toggle("emoji_key", "Emoji key", "Show a dedicated emoji key.")
+        toggle("language_key", "Language switch key", "Show the globe key to switch keyboard languages.")
+        toggle("comma_key", "Comma key", "Show a dedicated comma key.")
+        toggle("full_stop_key", "Full stop key", "Show a dedicated full stop key.")
+        section("Appearance")
+        slider("font_size", "Font size", "Adjust letter size.")
+        row("Use default font size", "Restore 22 sp.") { options.setNumber("font_size",22); changed(); navigate(page) }
+        slider("emoji_size", "Emoji size", "Adjust emoji size and the number shown per row.")
+        section("Layout")
+        toggle("suggestion_strip", "Suggestion strip", "Show suggestions and access features.")
+        toggle("floating", "Floating keyboard", "Compact keyboard over your app; drag the title to reposition.")
+        choices("Keyboard height", listOf("Compact", "Normal", "Tall"), KeyboardPreferences.load(context).height.ordinal) {
+            KeyboardPreferences.save(context, KeyboardPreferences.load(context).copy(height = KeyboardHeight.entries[it])); changed()
+        }
+        choices("One-handed keyboard", listOf("Off", "Left", "Right"), options.number("one_handed")) { options.setNumber("one_handed", it); changed() }
+        section("Shortcuts")
+        toggle("double_space", "Double-space full stop", "Two quick spaces after text insert a full stop and space.")
+        toggle("auto_space", "Auto-space after punctuation", "Add a space after comma, full stop, question mark and exclamation mark.")
+        toggle("apostrophe_space", "Auto-switch after apostrophe", "Return to letters after entering an apostrophe from symbols.")
+        toggle("symbols_hold", "Touch and hold keys for symbols", "Show symbol hints; hold a letter to insert its symbol.")
+        toggle("flick_symbols", "Flick keys to enter symbols", "Flick upwards on a letter to insert its symbol.")
+        slider("flick_sensitivity", "Flick input sensitivity", "Upward distance in dp before a symbol gesture is recognised.")
+        toggle("cursor_slide", "Space cursor control", "Slide across Space to move the text cursor.")
+        section("Key tap")
+        basicToggle("sound", "Sound", "Play sound when a key is pressed.", KeyboardPreferences.load(context).sound) {
+            KeyboardPreferences.save(context, KeyboardPreferences.load(context).copy(sound = it)); changed()
+        }
+        slider("sound_volume", "Sound volume", "Volume percentage; respects phone sound settings.")
+        basicToggle("vibration", "Keyboard vibrations", "Vibrate when a key is pressed.", KeyboardPreferences.load(context).vibration) {
+            KeyboardPreferences.save(context, KeyboardPreferences.load(context).copy(vibration = it)); changed()
+        }
+        slider("vibration_strength", "Vibration strength", "Short vibration duration in milliseconds; device-dependent.")
+        toggle("popup", "Key pop-up", "Show a letter preview while a key is pressed.")
+        slider("hold_duration", "Touch and hold duration", "Milliseconds before a held letter inserts its symbol.")
+        choices("Backspace repeat delay", listOf("200 ms", "400 ms", "600 ms"), listOf(200L,400L,600L).indexOf(KeyboardPreferences.load(context).holdDelayMillis).coerceAtLeast(0)) {
+            KeyboardPreferences.save(context, KeyboardPreferences.load(context).copy(holdDelayMillis = listOf(200L,400L,600L)[it])); changed()
+        }
+        choices("Backspace repeat speed", listOf("Fast", "Normal", "Slow"), listOf(55L,85L,120L).indexOf(KeyboardPreferences.load(context).repeatMillis).coerceAtLeast(0)) {
+            KeyboardPreferences.save(context, KeyboardPreferences.load(context).copy(repeatMillis = listOf(55L,85L,120L)[it])); changed()
+        }
+        basicToggle("app_icon", "App icon", "Show Raabta in the launcher. Settings remain available from the keyboard.", options.enabled("app_icon")) {
+            context.packageManager.setComponentEnabledSetting(ComponentName(context, "dev.raabta.keyboard.Launcher"),
+                if (it) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+            options.set("app_icon", it)
+        }
+    }
+    private fun corrections() {
+        section("Automatic corrections")
+        toggle("auto_correction", "Auto-correction", "Correct common dictionary typos when you press Space. Off by default.")
+        toggle("auto_capitalization", "Auto-capitalisation", "Capitalise at sentence starts when the editor supports it.")
+        section("Spelling and grammar")
+        toggle("spell_check", "Spell check", "Mark recognised common typos in red when the app supports suggestion spans.")
+        toggle("grammar_check", "Grammar check", "Offer basic English agreement fixes; blue marks where the app supports them.")
+        section("Suggestions")
+        toggle("offensive_filter", "Don't suggest offensive words", "Exclude blocked words from dictionary and contact suggestions.")
+        toggle("suggestion_strip", "Suggestion strip", "Show suggestions and access features.")
+        toggle("word_suggestions", "Word suggestions", "Show local dictionary matches in the strip.")
+        toggle("next_word", "Next-word suggestions", "Use common local phrases to suggest the next word.")
+        toggle("emoji_suggestions", "Relevant emoji", "Suggest emoji for English, Urdu and Roman Urdu words.")
+        permissionToggle("contacts", "Suggest contacts", "Suggest matching contact names locally. Requires your permission.")
+        toggle("smart_replies", "Smart replies", "Offer simple local greeting replies; no messages are uploaded.")
+    }
+    private fun emoji() {
+        section("Layout")
+        toggle("emoji_row", "Emoji fast-access row", "Show popular and recently selected emoji on the main keyboard.")
+        toggle("symbols_emoji", "Emoji in symbols keyboard", "Show recently selected emoji in symbol layouts.")
+        slider("emoji_size", "Emoji size", "Set the size and number of emoji shown in a row.")
+        row("Use default emoji size", "Restore 26 sp.") { options.setNumber("emoji_size",26); changed(); navigate(page) }
+        toggle("emoji_suggestions", "Relevant emoji suggestions", "Suggest emoji according to the word near your cursor.")
+        row("Open emoji picker", "Choose from local emoji categories.") { action("emoji") }
+        section("Stickers and GIFs")
+        row("Open stickers and GIFs", "Choose original offline smile and heart stickers or animations.") { action("media") }
+        note("Online sticker/GIF search is not connected. Offline images and GIFs require a receiving app that supports rich content.")
+    }
+    private fun clipboard() {
+        section("Suggestions")
+        toggle("clipboard_suggestions", "Show recently copied text and images", "Preview the current clipboard in the suggestions bar. Nothing is saved to disk.")
+        toggle("clipboard_items", "Show addresses, phone numbers and other items", "Extract phone numbers, email addresses and links from current copied text.")
+        permissionToggle("screenshots", "Save recent screenshots in clipboard", "While this keyboard is visible, show newly saved screenshots. Requires image access; selected-photo access limits what is visible. Previews expire.")
+        row("Open clipboard", "Paste current text or an image in supported apps.") { action("clipboard") }
+        row("Clear clipboard previews", "Remove in-memory previews; leaves the system clipboard unchanged.") { action("clear") }
+    }
+    private fun voice() {
+        section("Language")
+        choices("Voice language", listOf("English", "Urdu", "English + Urdu"), listOf(VoiceSettings.ENGLISH,VoiceSettings.URDU,VoiceSettings.MIXED).indexOf(VoiceSettings.language(context))) {
+            VoiceSettings.setLanguage(context,listOf(VoiceSettings.ENGLISH,VoiceSettings.URDU,VoiceSettings.MIXED)[it])
+        }
+        choices("Mixed mode starts with", listOf("Mostly Urdu", "Mostly English"), if (VoiceSettings.mixedPrimary(context)==VoiceSettings.URDU) 0 else 1) {
+            VoiceSettings.setMixedPrimary(context,if(it==0) VoiceSettings.URDU else VoiceSettings.ENGLISH)
+        }
+        section("Completion")
+        choices("Insert transcription", listOf("Only when I press Stop", "After 8 seconds of silence", "After 12 seconds of silence"), listOf(0L,8000L,12000L).indexOf(VoiceSettings.pauseMillis(context))) {
+            VoiceSettings.setPauseMillis(context,listOf(0L,8000L,12000L)[it])
+        }
+        choices("Finish latency", listOf("Fast (0.8 seconds with a draft)", "Prefer-final (up to 3 seconds)"), if(VoiceSettings.finalWaitMillis(context)==800L) 0 else 1) {
+            VoiceSettings.setFinalWaitMillis(context,if(it==0) 800 else 3000)
+        }
+        basicToggle("on_device", "On-device only", "Requires the phone's installed language model.", VoiceSettings.onDeviceOnly(context)) { VoiceSettings.setOnDeviceOnly(context,it) }
+        note("Speech accuracy and language switching depend on the system provider. Urdu-only is recommended for mostly Urdu speech.")
+    }
+    private fun permissionToggle(key: String, title: String, detail: String) = basicToggle(key,title,detail,options.enabled(key)) {
+        options.set(key,it); changed(); if(it) action("permission:$key")
+    }
+    private fun toggle(key: String, title: String, detail: String) = basicToggle(key,title,detail,options.enabled(key)) { options.set(key,it); changed() }
+    private fun basicToggle(key: String, title: String, detail: String, value: Boolean, save: (Boolean)->Unit) {
+        val line = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0,context.dp(10),0,context.dp(10)) }
+        val texts = LinearLayout(context).apply { orientation = VERTICAL; addView(label(title,18f)); addView(label(detail,13f,palette.muted)) }
+        line.addView(texts,LayoutParams(0,LayoutParams.WRAP_CONTENT,1f))
+        line.addView(Switch(context).apply { tag = "option:$key"; contentDescription = title; isChecked=value; setOnCheckedChangeListener { _,checked-> save(checked) } })
+        body.addView(line)
+    }
+    private fun slider(key: String, title: String, detail: String) {
+        val range = KeyboardOptions.numbers.getValue(key).second
+        val text = label("$title · ${options.number(key)}",18f)
+        body.addView(text); body.addView(label(detail,13f,palette.muted))
+        body.addView(SeekBar(context).apply {
+            tag="option:$key"; contentDescription=title; max=range.last-range.first; progress=options.number(key)-range.first
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar:SeekBar?,value:Int,user:Boolean) { if(user) { options.setNumber(key,value+range.first); text.text=context.getString(dev.raabta.keyboard.R.string.setting_value,title,value+range.first) } }
+                override fun onStartTrackingTouch(bar:SeekBar?) = Unit
+                override fun onStopTrackingTouch(bar:SeekBar?) { changed() }
+            })
+        })
+    }
+    private fun choices(title:String,values:List<String>,selected:Int,save:(Int)->Unit) {
+        body.addView(label(title,18f))
+        body.addView(RadioGroup(context).apply {
+            values.forEachIndexed { index,value -> addView(RadioButton(context).apply {
+                id=View.generateViewId(); tag="choice:$title:$index"; text=value; setTextColor(palette.text); isChecked=index==selected
+                setOnCheckedChangeListener { _,checked -> if(checked) save(index) }
+            }) }
+        })
+    }
+    private fun row(title:String,detail:String,click:()->Unit) {
+        body.addView(LinearLayout(context).apply {
+            orientation=VERTICAL; tag="settings:$title"; isClickable=true; isFocusable=true; contentDescription="$title. $detail"
+            setPadding(0,context.dp(13),0,context.dp(13)); addView(label(title,18f)); addView(label(detail,13f,palette.muted))
+            setOnClickListener { click() }
+        })
+    }
+    private fun section(text:String) { body.addView(label(text,14f,palette.accent).apply { setPadding(0,context.dp(20),0,context.dp(12)) }) }
+    private fun note(text:String) { body.addView(label(text,15f,palette.muted).apply { setPadding(0,context.dp(14),0,context.dp(14)) }) }
+    private fun label(text:String,size:Float,color:Int=palette.text) = TextView(context).apply { this.text=text; textSize=size; setTextColor(color); setPadding(0,context.dp(3),context.dp(12),context.dp(3)) }
+}

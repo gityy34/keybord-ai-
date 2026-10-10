@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <input-method xmlns:android="http://schemas.android.com/apk/res/android"
-    android:settingsActivity="dev.raabta.keyboard.setup.SetupActivity"
+    android:settingsActivity="dev.raabta.keyboard.setup.KeyboardSettingsActivity"
     android:supportsSwitchingToNextInputMethod="true">
     <subtype android:label="@string/language_english"
         android:imeSubtypeLocale="en_US"
