@@ -136,14 +136,14 @@ class AdvancedKeyboardTest {
         type("teh "); assertEquals("the ",field.text.toString())
         click("Space"); assertEquals("the. ",field.text.toString())
     }
-    @Test fun clipboardPreviewExtractsItemsAndExpiresWithoutDiskHistory() {
+    @Test fun clipboardPreviewExtractsItemsAndSurvivesBriefKeyboardPause() {
         val clipboard=service.getSystemService(ClipboardManager::class.java)
         clipboard.setPrimaryClip(ClipData.newPlainText("Test","Email a@example.com or call +12345678901"))
         val preview=ClipboardPreview(service); preview.refresh()
         assertTrue(preview.candidates(true).any { it.text=="a@example.com" })
         assertTrue(preview.candidates(true).any { it.text=="+12345678901" })
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(121))
-        assertTrue(preview.candidates(true).isEmpty())
+        assertTrue(preview.candidates(true).any { it.text=="a@example.com" })
     }
     @Test fun emojiAndSuggestionControlsPersistFromFullSettings() {
         val settings=fullSettings()

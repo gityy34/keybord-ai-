@@ -8,7 +8,7 @@ Android **8.0 or newer** is required.
 
 ## Install and start typing
 
-1. [Download APK 0.7.0 for your OPPO / ARM64 phone](https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-polish-0.7.0/raabta-keyboard-0.7.0.apk), or obtain it from GitHub Actions below. Sign in to GitHub first if the repository is private.
+1. [Download APK 0.8.0 for your OPPO / ARM64 phone](https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-customization-0.8.0/raabta-keyboard-0.8.0.apk), or obtain it from GitHub Actions below. Sign in to GitHub first if the repository is private.
 2. Open the APK on your Android phone. If Android asks, allow your browser/file manager to install this app.
 3. Open **Raabta Keyboard**.
 4. Tap **1 · Enable Raabta**, find **Raabta Keyboard**, and turn it on. Android displays its standard keyboard-access warning. Menu names vary by manufacturer.
@@ -18,7 +18,7 @@ Android **8.0 or newer** is required.
 Use Shift once for one capital, twice (or hold it) for Caps Lock, and once more to turn Caps Lock off.
 Use **?123** for numbers, **=\<** for extra symbols, and **ABC** to return to letters.
 Hold Backspace to delete repeatedly. Enter becomes Search, Send, Next, or Done when the active app requests it.
-Tap the globe to cycle English → Urdu → Roman Urdu; hold it for Android's keyboard picker. The compact toolbar stays in the keyboard: **AI · Fix Grammar · Rewrite · Tone · Translate · Voice · More**. More opens local tools; **More → Settings** opens full categorized settings independently of onboarding. Back returns to your app.
+Tap the globe to cycle English → Urdu → Roman Urdu. Hold the globe for 2.5 seconds or hold Space still for 5 seconds to open Android's system keyboard picker. A horizontal Space swipe still moves the cursor. The Enter key displays an arrow while keeping the receiving app's Search/Send/Next/Done action. The compact toolbar stays in the keyboard: **AI · Fix Grammar · Rewrite · Tone · Translate · Voice · More**. Hold a toolbar or More tile for **Reorder** (drag it to a new tile), or **Move to Tools / Toolbar**. More stays pinned on the right. More opens local tools; **More → Settings** opens full categorized settings independently of onboarding. Back returns to your app.
 
 Test `hello world`, `Ab`, `ABC`, punctuation, numbers, deletion, and multiline Enter. Try airplane mode,
 fast typing, switching apps, and reopening/rotating the keyboard. See the full [phone acceptance checklist](docs/ROADMAP.md).
@@ -29,11 +29,11 @@ rotation, offline scenarios, and sustained daily use still need specific results
 
 Open **More → Settings** for full category settings. Android’s keyboard settings entry and the launcher’s **Keyboard settings** button open the same category design. Enable/select/test onboarding remains separate. Choose:
 
-- Existing **Phone theme**, **Light**, **Dark** and **Midnight**, plus **Neon Orbit**, **Paper White** and **Spectrum**. Shared colors apply to keys, toolbar, grids, AI results, translation, voice and menus. **More → Themes** opens previews directly. **Import theme** applies a validated local color-only JSON definition; [working example](docs/themes/neon-orbit.json).
+- Existing **Phone theme**, **Light**, **Dark** and **Midnight**, plus **Neon Orbit**, **Paper White**, **Spectrum**, **Neon Glass**, **Soft Charcoal** and **Cloud White**. Shared colors apply to keys, toolbar, grids, AI results, translation, voice and menus. **More → Themes** opens two full miniature keyboard previews per row, each with a clear Apply button. **Import theme** applies a validated local color-only JSON definition; [working example](docs/themes/neon-orbit.json).
 - **Compact**, **Normal**, or **Tall** height. Landscape uses shorter rows; wide screens center the keys.
 - **Always show number row** to add digits above the letters.
 - **Typing sensitivity** adjusts tap movement tolerance (default 80/100); ordinary key commits have no deliberate delay. **Suggestion response delay** adjusts suggestion refresh from 0–200 ms (default 16 ms), independently of typing. These controls do not throttle typing or speed up a remote provider.
-- **Clipboard enabled** is also a switch at the top of the in-keyboard Clipboard panel; turning it off clears and blocks previews.
+- **Clipboard enabled** is also a switch at the top of the in-keyboard Clipboard panel; turning it off hides previews and history. The encrypted local text history shows six Recent clips and up to twenty Old clips; Recent moves to Old after eight hours or when displaced by a seventh copy. Unpinned clips expire 24 hours after the original copy. Pins survive until deleted or the app is uninstalled. Hold a clip for Copy, Pin/Unpin and Delete; each section has Clear all. Copied text can appear in the suggestion strip. Android lets the keyboard observe clipboard changes while it is active; it cannot collect every copy made while the keyboard is closed.
 - **Backspace hold delay** (200/400/600 ms) and **repeat speed** (55/85/120 ms); held Shift keeps Android’s native timing.
 - **Vibrate on keypress** and **Sound on keypress** independently. Sound is off by default; feedback respects Android's haptic/touch-sound settings and silent mode. Missing hardware never interrupts typing.
 
@@ -90,14 +90,14 @@ floating, undo and clipboard. Drag the title in floating mode; switching fields/
 - **Emoji/media:** local search and categories in the picker, optional fast-access/recent row, symbols row and adjustable size. Four original
   offline smile/heart sticker/GIF choices are included; the receiving app must support rich content. Online
   media search remains unconnected. Translation and optional AI tools are described below.
-- **Clipboard:** explicit toolbar access, optional current-clipboard suggestions, basic extraction of phones,
+- **Clipboard:** encrypted local history, optional current-clipboard suggestions, basic extraction of phones,
   email/web and common street addresses. Previews expire after two minutes and are never written to disk.
   Sensitive clips and private/password fields block automatic previews. Pasted images require host support.
 - **Optional access:** contact-name suggestions require Contacts permission and are queried on a worker.
   Screenshot previews require image permission and observe newly saved files named as screenshots while the
   keyboard is visible. Android 14 selected-photo access limits which images are available. Access is off by
   default; denial turns the setting off. This is not background screenshot capture or a persistent archive.
-- **Dictionary/privacy:** explicitly save/remove words and clear dictionary/recent emoji/learned frequencies. Optional word learning excludes private, password, no-suggestions, email and URL fields. No sentences or transcript history are stored. Generated local media templates alone use its cache; contact names and clipboard previews stay in memory. Internet is used for explicit model downloads/AI; Google SDK diagnostics are disclosed.
+- **Dictionary/privacy:** explicitly save/remove words and clear dictionary/recent emoji/learned frequencies. Optional word learning excludes private, password, no-suggestions, email and URL fields. No sentences or transcript history are stored. Generated local media templates alone use its cache; contact names stay in memory and clipboard text is encrypted locally. Internet is used for explicit model downloads/AI; Google SDK diagnostics are disclosed.
 - **Glide:** optional exact dictionary-path matching is a starter implementation; it does not provide Gboard's
   probabilistic swipe recognition. Undo/redo and other editor actions depend on the receiving app.
 
@@ -105,7 +105,7 @@ floating, undo and clipboard. Drag the title in floating mode; switching fields/
 
 See [0.7 redesign validation and remaining acceptance gates](docs/POLISH_0.7_VALIDATION.md) and [reference review](docs/CLEVERTYPE_REFERENCE_0.5.md), and the earlier [screenshot feature matrix](docs/SETTINGS_0.3_VALIDATION.md). Device smoothness,
 app-specific spans/paste/undo, gesture feel and Urdu layout comfort remain OPPO phone acceptance checks.
-If a private GitHub download opens a page without downloading, use [the APK file page](https://github.com/gityy34/keybord-ai-/blob/apk-polish-0.7.0/raabta-keyboard-0.7.0.apk)
+If a private GitHub download opens a page without downloading, use [the APK file page](https://github.com/gityy34/keybord-ai-/blob/apk-customization-0.8.0/raabta-keyboard-0.8.0.apk)
 in Chrome, sign in with repository access and select **Download raw file / View raw**.
 
 ## Translation, Roman Urdu and AI Write

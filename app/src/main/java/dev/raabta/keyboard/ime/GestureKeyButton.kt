@@ -15,24 +15,31 @@ class GestureKeyButton(context:Context) : KeyButton(context) {
     var onGlideEnd: (()->Boolean)? = null
     var onPreview: ((Boolean)->Unit)? = null
     var onCancel: (()->Unit)? = null
+    var onStationaryHold: (()->Unit)? = null
+    var stationaryHoldMillis = 0L
     var holdDuration=400L
     var flickDistance=24f * resources.displayMetrics.density
     var enableFlick=false
     var tapSlop=ViewConfiguration.get(context).scaledTouchSlop.toFloat()
     private val handler=Handler(Looper.getMainLooper())
     private var x=0f; private var y=0f; private var lastX=0f
-    private var consumed=false; private var moved=false
+    private var consumed=false; private var moved=false; private var stationaryFired=false
     private val held=Runnable { if(isPressed && !moved && onSymbol!=null) { consumed=true; onSymbol?.invoke(); onPreview?.invoke(false) } }
+    private val stationaryHold=Runnable { if(isPressed && !moved && onStationaryHold!=null) {
+        consumed=true; stationaryFired=true; onStationaryHold?.invoke(); onPreview?.invoke(false)
+    } }
     override fun onTouchEvent(event:MotionEvent):Boolean {
         when(event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                cancelGesture(); x=event.x; lastX=x; y=event.y; consumed=false; moved=false; isPressed=true
+                cancelGesture(); x=event.x; lastX=x; y=event.y; consumed=false; moved=false; stationaryFired=false; isPressed=true
                 onPreview?.invoke(true); onGlideMove?.invoke(event.rawX,event.rawY)
                 if(onSymbol!=null) handler.postDelayed(held,holdDuration)
+                if(onStationaryHold!=null && stationaryHoldMillis>0) handler.postDelayed(stationaryHold,stationaryHoldMillis)
             }
             MotionEvent.ACTION_MOVE -> {
+                if(stationaryFired) return true
                 if(kotlin.math.abs(event.x-x)>tapSlop || kotlin.math.abs(event.y-y)>tapSlop) {
-                    moved=true; handler.removeCallbacks(held); onPreview?.invoke(false)
+                    moved=true; handler.removeCallbacks(held); handler.removeCallbacks(stationaryHold); onPreview?.invoke(false)
                 }
                 if(consumed && onMoveCursor==null) return true
                 val move=onMoveCursor
@@ -46,7 +53,7 @@ class GestureKeyButton(context:Context) : KeyButton(context) {
                 } else if(moved) onGlideMove?.invoke(event.rawX,event.rawY)
             }
             MotionEvent.ACTION_UP -> {
-                handler.removeCallbacks(held); isPressed=false; onPreview?.invoke(false)
+                handler.removeCallbacks(held); handler.removeCallbacks(stationaryHold); isPressed=false; onPreview?.invoke(false)
                 val glide=if(!consumed && moved) onGlideEnd?.invoke()==true else false
                 if(!consumed && !glide && (!moved || (onMoveCursor!=null && kotlin.math.abs(event.y-y)<tapSlop*2))) performClick()
                 else if(!consumed && !glide && onGlideEnd==null && onMoveCursor==null) performClick()
@@ -57,7 +64,7 @@ class GestureKeyButton(context:Context) : KeyButton(context) {
         return true
     }
     override fun performClick():Boolean = super.performClick()
-    fun cancelGesture() { handler.removeCallbacks(held); isPressed=false; consumed=true; onPreview?.invoke(false); onCancel?.invoke() }
+    fun cancelGesture() { handler.removeCallbacks(held); handler.removeCallbacks(stationaryHold); isPressed=false; consumed=true; onPreview?.invoke(false); onCancel?.invoke() }
     override fun onDetachedFromWindow() { cancelGesture(); super.onDetachedFromWindow() }
 }
 

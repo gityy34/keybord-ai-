@@ -92,7 +92,7 @@ class RaabtaInputMethodService : InputMethodService() {
     private var candidateGeneration=0
     private val suggestionUpdate=Runnable { updateSuggestions() }
     private val clipboardListener=ClipboardManager.OnPrimaryClipChangedListener {
-        if(showing && VoicePolicy.allows(editor) && options.enabled("clipboard_suggestions")) { clipboard.refresh(); refreshSuggestions() }
+        if(showing && VoicePolicy.allows(editor) && options.enabled("clipboard_enabled")) { clipboard.refresh(newCopy=true); refreshSuggestions() }
     }
     private val screenshotObserver=object:ContentObserver(ui) {
         override fun onChange(selfChange:Boolean) { checkScreenshots() }
@@ -143,7 +143,7 @@ class RaabtaInputMethodService : InputMethodService() {
             if(options.enabled("screenshots") && OptionalPermissionActivity.hasImageAccess(this))
                 contentResolver.registerContentObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,true,screenshotObserver)
         } catch (_:RuntimeException) { }
-        if(VoicePolicy.allows(info) && options.enabled("clipboard_suggestions")) clipboard.refresh()
+        if(VoicePolicy.allows(info) && options.enabled("clipboard_enabled")) clipboard.refresh()
         loadContacts(); refreshSuggestions()
         if (keyboard?.matchesCurrentPreferences() == false) {
             voice.cancel()
@@ -174,7 +174,7 @@ class RaabtaInputMethodService : InputMethodService() {
         editHistory.clear(); rawEditor=null; trackedEditor=null; voiceEditId=null
         val capsMode = currentInputConnection?.getCursorCapsMode(attribute.inputType) ?: 0
         state.reset(EditorPolicy.isNumeric(attribute), options.enabled("auto_capitalization") && capsMode != 0)
-        candidateBefore=""; clipboard.clear(); contactNames=emptyList(); spaceTime=-1
+        candidateBefore=""; clipboard.clearPreview(); contactNames=emptyList(); spaceTime=-1
         keyboard?.showCandidates(emptyList())
         ui.removeCallbacks(suggestionUpdate)
         keyboard?.render(EditorPolicy.enterLabel(editor))
@@ -537,13 +537,16 @@ class RaabtaInputMethodService : InputMethodService() {
         val word=LocalSuggestions.lastWord(context)
         if(options.enabled("contacts") && options.enabled("word_suggestions") && word.length>=2)
             contactNames.asSequence().filter { it.startsWith(word,true) }.take(2).forEach { values.add(Candidate(it,it,word)) }
-        if(options.enabled("clipboard_suggestions")) values.addAll(clipboard.candidates(options.enabled("clipboard_items")))
+        if(options.enabled("clipboard_suggestions")) {
+            val copied=clipboard.candidates(options.enabled("clipboard_items"))
+            if(word.isEmpty()) values.addAll(0,copied) else values.addAll(copied)
+        }
         keyboard?.showCandidates(values.filter { filtered(it.text) })
     }
     private fun chooseCandidate(candidate:Candidate) {
         voice.cancel()
         if(!VoicePolicy.allows(editor) && !candidate.emoji) return
-        if(SystemClock.uptimeMillis()>candidate.expiresAt) { clipboard.clear(); refreshSuggestions(); return }
+        if(SystemClock.uptimeMillis()>candidate.expiresAt) { clipboard.clearPreview(); refreshSuggestions(); return }
         val connection=currentInputConnection ?: return
         connection.beginBatchEdit()
         try {
@@ -600,6 +603,7 @@ class RaabtaInputMethodService : InputMethodService() {
         }
     }
     private fun tool(name:String) {
+        if(name=="voice") { toggleVoice(); return }
         if(name=="voice:retry") { voice.cancel(); keyboard?.showVoicePreview(""); toggleVoice(); return }
         if(name=="voice:delete") {
             var cannotRemove=false
@@ -633,6 +637,24 @@ class RaabtaInputMethodService : InputMethodService() {
             return
         }
         closeWriting(); learningBuffer=""
+        if(name.startsWith("clipboard:") && name!="clipboard:refresh") {
+            if(!VoicePolicy.allows(editor)) return
+            if(name.startsWith("clipboard:clear:")) {
+                if(name.endsWith(":UNPINNED")) clipboard.history.clearUnpinned()
+                else ClipSection.entries.firstOrNull { it.name==name.substringAfterLast(':') }?.let(clipboard.history::clear)
+            } else {
+                val operation=name.substringAfter("clipboard:").substringBefore(':')
+                val id=name.substringAfterLast(':')
+                val clip=clipboard.history.find(id) ?: return
+                when(operation) {
+                    "paste" -> { currentInputConnection?.let { EditorCommands.type(it,clip.text) }; keyboard?.showSettings(""); refreshSuggestions(); return }
+                    "copy" -> getSystemService(ClipboardManager::class.java)?.setPrimaryClip(android.content.ClipData.newPlainText("Raabta clip",clip.text))
+                    "pin" -> clipboard.history.pin(id,!clip.pinned)
+                    "delete" -> clipboard.history.delete(id)
+                }
+            }
+            keyboard?.showClipboard(clipboard.history); refreshSuggestions(); return
+        }
         when(name) {
             "tools" -> { keyboard?.showSettings("Tools"); keyboard?.setHistoryAvailability(editHistory.canUndo,editHistory.canRedo) }
             "themes" -> keyboard?.showSettings("Theme")
@@ -649,8 +671,8 @@ class RaabtaInputMethodService : InputMethodService() {
             "emoji" -> keyboard?.showEmojiPicker()
             "media" -> keyboard?.showMediaPicker()
             "clipboard", "clipboard:refresh" -> {
-                if(VoicePolicy.allows(editor)) { clipboard.refresh(); keyboard?.showClipboard(clipboard.candidates(options.enabled("clipboard_items"))) }
-                else keyboard?.showClipboard(emptyList())
+                if(VoicePolicy.allows(editor)) { clipboard.refresh(); keyboard?.showClipboard(clipboard.history) }
+                else keyboard?.showClipboard(null)
             }
             "language" -> {
                 options.setNumber("language",(options.number("language")+1)%3)
@@ -738,7 +760,7 @@ class RaabtaInputMethodService : InputMethodService() {
         } } catch (_:java.util.concurrent.RejectedExecutionException) { current.findViewWithTag<View>("ConnectionTest")?.isEnabled=true; current.showTextMessage("Busy. Retry shortly.") }
     }
     private fun hideTools() {
-        showing=false; closeWriting(); learningBuffer=""; deleteSelection.cancel(); deleting=false; keyboard?.hideVoiceLanguages(); ui.removeCallbacks(suggestionUpdate); clipboard.clear(); contactNames=emptyList()
+        showing=false; closeWriting(); learningBuffer=""; deleteSelection.cancel(); deleting=false; keyboard?.hideVoiceLanguages(); ui.removeCallbacks(suggestionUpdate); clipboard.clearPreview(); contactNames=emptyList()
         editHistory.clear(); voiceEditId=null
         try { getSystemService(ClipboardManager::class.java)?.removePrimaryClipChangedListener(clipboardListener); contentResolver.unregisterContentObserver(screenshotObserver) } catch (_:RuntimeException) { }
     }

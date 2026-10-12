@@ -99,7 +99,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
             }
             "Privacy" -> {
                 section("Local data")
-                note("Optional learned word frequencies, explicit dictionary words and recent emoji stay on this phone. Voice and writing drafts are not saved. Clipboard previews expire. Translation text is processed on-device; Google may collect SDK diagnostics. AI sends only its draft to your chosen provider when you press Generate.")
+                note("Optional learned word frequencies, explicit dictionary words, recent emoji and encrypted clipboard history stay on this phone. Unpinned clips expire 24 hours after copying; pinned clips remain until removed. Voice and writing drafts are not saved. Translation text is processed on-device; Google may collect SDK diagnostics. AI sends only its draft to your chosen provider when you press Generate.")
                 row("Clear dictionary and recent emoji", "Also clears learned words and current clipboard previews.") { options.clearLocalData(); action("clear"); changed(); navigate(page) }
                 row("App permissions", "Manage microphone, optional contacts and screenshot access in Android.") { action("permissions") }
             }
@@ -205,13 +205,13 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         note("Online sticker/GIF search is not connected. Offline images and GIFs require a receiving app that supports rich content.")
     }
     private fun clipboard() {
-        toggle("clipboard_enabled", "Clipboard", "Allow local clipboard previews and paste tools. Off clears previews.")
+        toggle("clipboard_enabled", "Clipboard", "Allow local clipboard history and paste tools. Off hides saved clips without deleting pins.")
         section("Suggestions")
-        toggle("clipboard_suggestions", "Show recently copied text and images", "Preview the current clipboard in the suggestions bar. Nothing is saved to disk.")
+        toggle("clipboard_suggestions", "Show recently copied text and images", "Show copied content in the suggestion bar. Clipboard history is encrypted on this phone.")
         toggle("clipboard_items", "Show addresses, phone numbers and other items", "Extract phone numbers, email addresses and links from current copied text.")
         permissionToggle("screenshots", "Save recent screenshots in clipboard", "While this keyboard is visible, show newly saved screenshots. Requires image access; selected-photo access limits what is visible. Previews expire.")
-        row("Open clipboard", "Paste current text or an image in supported apps.") { action("clipboard") }
-        row("Clear clipboard previews", "Remove in-memory previews; leaves the system clipboard unchanged.") { action("clear") }
+        row("Open clipboard", "Browse and paste Recent, Old and Pinned clips.") { action("clipboard") }
+        row("Clear unpinned history", "Delete Recent and Old clips; pinned clips and the system clipboard stay unchanged.") { action("clipboard:clear:UNPINNED") }
     }
     private fun voice() {
         section("Language")

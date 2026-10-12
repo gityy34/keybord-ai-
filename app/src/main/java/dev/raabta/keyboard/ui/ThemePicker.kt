@@ -24,19 +24,14 @@ class ThemePicker @JvmOverloads constructor(context: Context, private val change
                     setPadding(context.dp(8),context.dp(8),context.dp(8),context.dp(8))
                     background = colors.pressed(colors.background,context.dp(12).toFloat())
                     addView(TextView(context).apply { text = name; textSize = 13f; maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; setTextColor(colors.text); gravity=Gravity.CENTER })
-                    val sample = LinearLayout(context).apply { gravity=Gravity.CENTER }
-                    for (key in listOf("Q","W","↵")) sample.addView(TextView(context).apply {
-                        text=key; textSize=14f; gravity=Gravity.CENTER; setTextColor(if(key=="↵") colors.onAccent else colors.text)
-                        background=colors.keyBackground(if(key=="↵") KeySurface.ENTER else KeySurface.NORMAL,context.dp(5).toFloat())
-                    },LayoutParams(0,context.dp(28),1f).apply { setMargins(context.dp(2),context.dp(8),context.dp(2),0) })
-                    addView(sample)
+                    addView(MiniKeyboardPreview(context,colors).apply { tag="ThemePreview:${theme.name}" },LayoutParams(LayoutParams.MATCH_PARENT,context.dp(130)).apply { topMargin=context.dp(6) })
                     addView(TextView(context).apply {
-                        text=if(theme==active) "Selected ✓" else "Apply"; textSize=11f; gravity=Gravity.CENTER; setTextColor(colors.onAccent)
+                        text=if(theme==active) "Selected ✓" else "Apply theme"; textSize=12f; gravity=Gravity.CENTER; setTextColor(colors.onAccent)
                         background=colors.shape(colors.accent,context.dp(5).toFloat(),false)
-                    },LayoutParams(LayoutParams.MATCH_PARENT,context.dp(22)).apply { topMargin=context.dp(6) })
+                    },LayoutParams(LayoutParams.MATCH_PARENT,context.dp(32)).apply { topMargin=context.dp(6) })
                     setOnClickListener { KeyboardPreferences.save(context,KeyboardPreferences.load(context).copy(theme=theme)); changed() }
                 }
-                row.addView(card,LayoutParams(0,context.dp(110),1f).apply { setMargins(context.dp(4),context.dp(4),context.dp(4),context.dp(4)) })
+                row.addView(card,LayoutParams(0,context.dp(205),1f).apply { setMargins(context.dp(4),context.dp(4),context.dp(4),context.dp(4)) })
             }
             addView(row)
         }

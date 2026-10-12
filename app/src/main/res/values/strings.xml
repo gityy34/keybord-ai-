@@ -108,6 +108,8 @@
     <string name="custom_instruction_notice">This instruction stays in memory. Your existing draft is kept.</string>
     <string name="writing_use_tool">Use tool</string>
     <string name="clipboard_enabled">Clipboard</string>
+    <string name="clipboard_clear_all">Clear all</string>
+    <string name="clipboard_no_clips">No %1$s clips</string>
     <string name="connection_saved">Saved. Test Connection to verify these settings.</string>
     <string name="connection_save_first">Save a valid connection first.</string>
     <string name="connection_testing">Connecting…</string>

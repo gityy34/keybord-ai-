@@ -29,6 +29,10 @@ class ToolbarButton(context: Context) : KeyButton(context) {
             "↻" -> R.drawable.ic_rewrite
             "☷" -> R.drawable.ic_tone
             "⇄" -> R.drawable.ic_translate
+            "↶" -> R.drawable.ic_undo
+            "↷" -> R.drawable.ic_redo
+            "◈" -> R.drawable.ic_theme
+            "□" -> R.drawable.ic_resize
             else -> 0
         }
         if (icon == 0) { super.onDraw(canvas); return }

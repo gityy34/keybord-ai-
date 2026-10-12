@@ -36,7 +36,7 @@ class KeyboardOptions(context: Context) {
             "learn_words" to true, "roman_suggestions" to true, "delete_swipe" to true,
             "auto_correction" to false, "spell_check" to false, "grammar_check" to false,
             "contacts" to false, "smart_replies" to false, "emoji_row" to false,
-            "symbols_emoji" to false, "clipboard_suggestions" to false, "clipboard_items" to false,
+            "symbols_emoji" to false, "clipboard_suggestions" to true, "clipboard_items" to false,
             "screenshots" to false, "glide" to false, "app_icon" to true, "symbols_number_row" to true, "floating" to false,
         )
         val numbers = mapOf("font_size" to (22 to 16..32), "emoji_size" to (26 to 18..40),

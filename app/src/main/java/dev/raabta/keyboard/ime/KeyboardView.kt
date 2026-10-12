@@ -13,6 +13,9 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.ScrollView
+import android.widget.PopupMenu
+import android.content.ClipData
+import android.view.DragEvent
 import dev.raabta.keyboard.ui.KeyboardOptions
 import dev.raabta.keyboard.ui.KeyboardSettingsPanel
 import dev.raabta.keyboard.R
@@ -68,7 +71,9 @@ class KeyboardView @JvmOverloads constructor(
     private var glidePath = ""
     private var header: LinearLayout? = null
     private var toolbarScroller: android.widget.HorizontalScrollView? = null
+    private var toolbarContainer: View? = null
     private val toolbarButtons=mutableMapOf<String,Button>()
+    private val toolOrder=ToolOrder(context)
     private var keyPopup: android.widget.PopupWindow? = null
     val floating get() = options.enabled("floating") && settingsPage.isEmpty()
     fun contentBounds():android.graphics.Rect {
@@ -107,6 +112,7 @@ class KeyboardView @JvmOverloads constructor(
     private var emojiPanel: dev.raabta.keyboard.ui.EmojiPanel? = null
     private var emojiSearching=false
     private var emojiQuery=""
+    private var clipboardPinnedOnly=false
 
     init {
         orientation = VERTICAL
@@ -136,22 +142,17 @@ class KeyboardView @JvmOverloads constructor(
         title.setText(R.string.keyboard_title); title.textSize=11f; title.setTextColor(palette.muted)
         title.visibility=if(options.enabled("floating")) View.VISIBLE else View.GONE
         content.addView(title,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(28)))
-        fun addTool(label:String,icon:String,tagValue:String,action:()->Unit) {
-            val button=headerButton(icon,R.string.keyboard_title,action).apply {
-                tag=tagValue; contentDescription=label; caption=label
-                layoutParams=LayoutParams(context.dp(48),context.dp(52))
-            }
-            toolbarButtons[tagValue]=button; header.addView(button)
-        }
-        addTool("AI","✦","AI") { onTool("ai") }
-        addTool("Fix Grammar","✎","Grammar") { onTool("grammar") }
-        addTool("Rewrite","↻","Rewrite") { onTool("rewrite") }
-        addTool("Tone","☷","Tone") { onTool("tone") }
-        addTool("Translate","⇄","Translation") { onTool("translate") }
-        microphone.caption="Voice"; microphone.layoutParams=LayoutParams(context.dp(48),context.dp(52)); header.addView(microphone); toolbarButtons["Voice"]=microphone
-        addTool("More","▦","Tools") { onTool("tools") }
         toolbarScroller=android.widget.HorizontalScrollView(context).apply { tag="KeyboardToolbar"; isHorizontalScrollBarEnabled=false; addView(header) }
-        content.addView(toolbarScroller,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(52)))
+        val toolbarRow=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL }
+        toolbarContainer=toolbarRow
+        toolbarRow.addView(toolbarScroller,LayoutParams(0,context.dp(52),1f))
+        val more=headerButton("▦",R.string.keyboard_title) { onTool("tools") }.apply {
+            tag="Tools"; caption="More"; contentDescription="More tools"
+        }
+        toolbarButtons["Tools"]=more
+        toolbarRow.addView(more,LayoutParams(context.dp(48),context.dp(52)))
+        content.addView(toolbarRow,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(52)))
+        refreshToolbar()
         candidateRow.tag="SuggestionStrip"
         candidateRow.isBaselineAligned=false
         candidateRow.gravity=Gravity.CENTER
@@ -169,6 +170,46 @@ class KeyboardView @JvmOverloads constructor(
         rows.orientation = VERTICAL
         content.addView(rows)
         setVoiceState(VoiceState.IDLE)
+    }
+
+    private fun refreshToolbar() {
+        val bar=header ?: return
+        bar.removeAllViews()
+        toolbarButtons.keys.filter { it!="Tools" }.toList().forEach(toolbarButtons::remove)
+        toolOrder.toolbar().forEach { tool ->
+            val button=if(tool.id=="Voice") microphone else headerButton(tool.glyph,R.string.keyboard_title) { onTool(tool.command) }
+            button.tag=tool.id; button.contentDescription=tool.label
+            (button as? ToolbarButton)?.caption=tool.label
+            (button.parent as? android.view.ViewGroup)?.removeView(button)
+            bar.addView(button,LayoutParams(context.dp(48),context.dp(52)))
+            toolbarButtons[tool.id]=button
+            button.setOnLongClickListener { view ->
+                PopupMenu(context,view).apply {
+                    menu.add("Reorder").setOnMenuItemClickListener {
+                        view.startDragAndDrop(ClipData.newPlainText("tool",tool.id),View.DragShadowBuilder(view),tool.id,0); true
+                    }
+                    menu.add("Move to Tools").setOnMenuItemClickListener {
+                        toolOrder.move(tool.id,false); refreshToolbar(); true
+                    }
+                    show()
+                }; true
+            }
+            button.setOnDragListener { _,event ->
+                when(event.action) {
+                    DragEvent.ACTION_DRAG_STARTED -> event.localState is String
+                    DragEvent.ACTION_DROP -> {
+                        val source=event.localState as? String ?: return@setOnDragListener false
+                        toolOrder.reorder(source,tool.id,true); refreshToolbar(); true
+                    }
+                    else -> true
+                }
+            }
+        }
+        setActiveTool("")
+    }
+    private fun toolbarVisible(visible: Boolean) {
+        toolbarContainer?.visibility=if(visible) View.VISIBLE else View.GONE
+        toolbarScroller?.visibility=if(visible) View.VISIBLE else View.GONE
     }
 
     private fun headerButton(label: String, description: Int, action: () -> Unit) = ToolbarButton(context).apply {
@@ -263,7 +304,7 @@ class KeyboardView @JvmOverloads constructor(
             KeyboardHeight.TALL -> if (landscape) 48 else 64
         })
         for (key in keys) {
-            val button = (if (key == Key.Delete) RepeatingDeleteButton(context) else if(key==Key.Space || key is Key.Text) GestureKeyButton(context) else KeyButton(context)).apply {
+            val button = (if (key == Key.Delete) RepeatingDeleteButton(context) else if(key==Key.Space || key==Key.Language || key is Key.Text) GestureKeyButton(context) else KeyButton(context)).apply {
                 isAllCaps = false
                 isSoundEffectsEnabled = false
                 isHapticFeedbackEnabled = preferences.vibration
@@ -291,7 +332,7 @@ class KeyboardView @JvmOverloads constructor(
                     is Key.Text -> key.text
                     Key.Shift -> "⇧"
                     Key.Delete -> "⌫"
-                    Key.Enter -> context.getString(enterLabel)
+                    Key.Enter -> "↵"
                     Key.Space -> if(options.number("language")==1) "اردو" else if(options.number("language")==2) "Roman Urdu" else context.getString(R.string.key_space)
                     Key.Emoji -> "☺"
                     Key.Language -> "🌐"
@@ -308,6 +349,7 @@ class KeyboardView @JvmOverloads constructor(
                     Key.Delete -> context.getString(R.string.key_delete)
                     Key.Shift -> context.getString(R.string.key_shift)
                     Key.Language -> context.getString(R.string.keyboard_switch)
+                    Key.Enter -> context.getString(enterLabel)
                     else -> text
                 }
                 setOnClickListener {
@@ -379,14 +421,14 @@ class KeyboardView @JvmOverloads constructor(
         requestLayout()
     }
     private fun restoreTypingViews() {
-        rows.visibility=View.VISIBLE; header?.visibility=View.VISIBLE; toolbarScroller?.visibility=View.VISIBLE
+        rows.visibility=View.VISIBLE; header?.visibility=View.VISIBLE; toolbarVisible(true)
         title.visibility=if(options.enabled("floating")) View.VISIBLE else View.GONE
         candidateRow.visibility=if(options.enabled("suggestion_strip")) View.VISIBLE else View.GONE
         setActiveTool("")
     }
     private fun showVoiceWorkspace() {
         recorder.visibility=View.VISIBLE; rows.visibility=View.GONE; candidateRow.visibility=View.GONE
-        header?.visibility=View.GONE; toolbarScroller?.visibility=View.GONE; title.visibility=View.GONE
+        header?.visibility=View.GONE; toolbarVisible(false); title.visibility=View.GONE
         writingPanel?.visibility=View.GONE; panel?.visibility=View.GONE
     }
     fun voiceReady() { if(voiceState==VoiceState.LISTENING) voiceStatus.setText(R.string.voice_listening) }
@@ -415,7 +457,7 @@ class KeyboardView @JvmOverloads constructor(
         closeWritingTool(); showSettings(""); hideVoiceLanguages()
         candidateRow.visibility=View.GONE
         val box=WritingToolPanel(context,mode,source,target,style,onTool)
-        writingPanel=box; writingKeyboardVisible=false; rows.visibility=View.GONE; header?.visibility=View.GONE; toolbarScroller?.visibility=View.GONE; title.visibility=View.GONE
+        writingPanel=box; writingKeyboardVisible=false; rows.visibility=View.GONE; header?.visibility=View.GONE; toolbarVisible(false); title.visibility=View.GONE
         content.addView(box,content.indexOfChild(rows),LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.WRAP_CONTENT))
     }
     fun updateWritingTool(draft: String, result: String, status: String, busy: Boolean, variants:List<String> = emptyList()) {
@@ -445,6 +487,10 @@ class KeyboardView @JvmOverloads constructor(
         gestureButtons.add(button)
         button.tapSlop=android.view.ViewConfiguration.get(context).scaledTouchSlop*(0.75f+options.number("typing_sensitivity")/100f*1.75f)
         if(key==Key.Space && options.enabled("cursor_slide")) button.onMoveCursor={ onKey(Key.Cursor(it)) }
+        if(key==Key.Space || key==Key.Language) {
+            button.stationaryHoldMillis=if(key==Key.Space) 5_000L else 2_500L
+            button.onStationaryHold=onSwitch
+        }
         if(key is Key.Text && state.mode==KeyboardMode.LETTERS) {
             val symbol=symbols[key.text.firstOrNull()]
             if(symbol!=null && options.enabled("symbols_hold")) {
@@ -534,23 +580,23 @@ class KeyboardView @JvmOverloads constructor(
         settingsPage=page
         for(i in 0 until content.childCount) content.getChildAt(i).visibility=View.GONE
         if(page.isEmpty()) {
-            header?.visibility=View.VISIBLE; toolbarScroller?.visibility=View.VISIBLE; title.visibility=if(options.enabled("floating")) View.VISIBLE else View.GONE; rows.visibility=View.VISIBLE
+            header?.visibility=View.VISIBLE; toolbarVisible(true); title.visibility=if(options.enabled("floating")) View.VISIBLE else View.GONE; rows.visibility=View.VISIBLE
             content.findViewWithTag<View>("SuggestionStrip")?.visibility=if(options.enabled("suggestion_strip")) View.VISIBLE else View.GONE
             render(enterLabel); return
         }
-        val settings:View=if(page=="Tools") dev.raabta.keyboard.ui.ToolsPanel(context,{ showSettings("") },onTool) else KeyboardSettingsPanel(context,page,::showSettings,{ onSettingsChanged(page) },onTool,internal=true)
+        val settings:View=if(page=="Tools") dev.raabta.keyboard.ui.ToolsPanel(context,{ showSettings("") },onTool,{ refreshToolbar() }) else KeyboardSettingsPanel(context,page,::showSettings,{ onSettingsChanged(page) },onTool,internal=true)
         panel=settings
         setBackgroundColor(palette.background)
         content.translationX=0f; content.translationY=0f
         content.addView(settings,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(if(resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE) 220 else 360)))
-        toolbarScroller?.visibility=View.GONE; header?.visibility=View.GONE; setActiveTool("Tools")
+        toolbarVisible(false); header?.visibility=View.GONE; setActiveTool("Tools")
     }
     private fun styleTool(button:Button) {
         button.setTextColor(palette.text); button.isAllCaps=false; button.isSoundEffectsEnabled=false; button.stateListAnimator=null
         button.background=RippleDrawable(ColorStateList.valueOf(palette.ripple),palette.shape(radius=context.dp(10).toFloat()),null)
     }
     fun showEmojiPicker() {
-        showSettings(""); candidateRow.visibility=View.GONE; rows.visibility=View.GONE; toolbarScroller?.visibility=View.GONE; header?.visibility=View.GONE; title.visibility=View.GONE
+        showSettings(""); candidateRow.visibility=View.GONE; rows.visibility=View.GONE; toolbarVisible(false); header?.visibility=View.GONE; title.visibility=View.GONE
         emojiPanel=dev.raabta.keyboard.ui.EmojiPanel(context,onCandidate,{ searching ->
             emojiSearching=searching; rows.visibility=if(searching) View.VISIBLE else View.GONE
         },{ showSettings("") },{ onTool("media") }).also { content.addView(it,content.indexOfChild(header)+1) }
@@ -571,7 +617,7 @@ class KeyboardView @JvmOverloads constructor(
     private fun utilityWorkspace() {
         (rows.parent as? android.view.ViewGroup)?.removeView(rows)
         val scroll=ScrollView(context).apply { addView(rows) }; panel=scroll; content.addView(scroll)
-        candidateRow.visibility=View.GONE; toolbarScroller?.visibility=View.GONE; header?.visibility=View.GONE; title.visibility=View.GONE
+        candidateRow.visibility=View.GONE; toolbarVisible(false); header?.visibility=View.GONE; title.visibility=View.GONE
         settingsPage="Tools"; requestLayout()
     }
     fun showEditingTools() {
@@ -606,15 +652,56 @@ class KeyboardView @JvmOverloads constructor(
         item("Delete connection","ConnectionDelete") { onTool("ai:clear"); showConnections(dev.raabta.keyboard.tools.AiConnection(context)) }
         item(context.getString(R.string.back_to_keyboard),"ConnectionsBack") { showSettings("") }
     }
-    fun showClipboard(candidates:List<Candidate>) {
+    fun showClipboard(history: ClipboardHistory?) {
         showSettings(""); candidateRow.visibility=View.GONE; rows.removeAllViews(); utilityWorkspace()
         rows.addView(Button(context).apply { styleTool(this); setText(R.string.back_to_keyboard); setOnClickListener { showSettings("") } })
-        val toggle=androidx.appcompat.widget.SwitchCompat(context).apply { tag="ClipboardEnabled"; setText(R.string.clipboard_enabled); setTextColor(palette.text); isChecked=options.enabled("clipboard_enabled"); setOnCheckedChangeListener { _,value -> options.set("clipboard_enabled",value); onTool("clipboard:refresh") } }
-        rows.addView(toggle)
-        val list=LinearLayout(context).apply { orientation=VERTICAL }
-        if(candidates.isEmpty()) list.addView(TextView(context).apply { setText(R.string.clipboard_empty); setTextColor(palette.text) })
-        candidates.forEach { candidate -> list.addView(Button(context).apply { styleTool(this); text=candidate.label; isAllCaps=false; setOnClickListener { onCandidate(candidate) } }) }
-        rows.addView(ScrollView(context).apply { addView(list) },LayoutParams(LayoutParams.MATCH_PARENT,minOf(context.dp(210),(resources.displayMetrics.heightPixels*0.3f).toInt())))
+        val toggle=androidx.appcompat.widget.SwitchCompat(context).apply { tag="ClipboardEnabled"; setText(R.string.clipboard_enabled); textOn=""; textOff=""; showText=false; setTextColor(palette.text); isChecked=options.enabled("clipboard_enabled"); setOnCheckedChangeListener { _,value -> options.set("clipboard_enabled",value); onTool("clipboard:refresh") } }
+        rows.addView(toggle,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(46)))
+        val list=LinearLayout(context).apply { orientation=VERTICAL; setPadding(context.dp(8),0,context.dp(8),context.dp(8)) }
+        if(history==null || !options.enabled("clipboard_enabled")) {
+            list.addView(TextView(context).apply { setText(R.string.clipboard_empty); setTextColor(palette.text) })
+        } else {
+            fun section(name:String,section:ClipSection,columns:Int,other:String?=null) {
+                val heading=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL }
+                heading.addView(TextView(context).apply { text=name; textSize=15f; setTextColor(palette.text) },LayoutParams(0,context.dp(40),1f))
+                if(other!=null) heading.addView(Button(context).apply {
+                    styleTool(this); text=other; textSize=12f; tag="ClipboardSectionSwitch"
+                    setOnClickListener { clipboardPinnedOnly=!clipboardPinnedOnly; showClipboard(history) }
+                },LayoutParams(context.dp(68),context.dp(38)))
+                heading.addView(Button(context).apply {
+                    styleTool(this); setText(R.string.clipboard_clear_all); textSize=12f; tag="ClipboardClear:$name"
+                    setOnClickListener { onTool("clipboard:clear:${section.name}") }
+                },LayoutParams(context.dp(82),context.dp(38)))
+                list.addView(heading)
+                val clips=history.items(section)
+                if(clips.isEmpty()) list.addView(TextView(context).apply { text=context.getString(R.string.clipboard_no_clips,name); textSize=12f; setTextColor(palette.muted) })
+                clips.chunked(columns).forEach { items ->
+                    val row=LinearLayout(context)
+                    items.forEach { clip ->
+                        row.addView(Button(context).apply {
+                            styleTool(this); text=clip.text.take(90); maxLines=3; ellipsize=android.text.TextUtils.TruncateAt.END
+                            textSize=13f; gravity=Gravity.START or Gravity.CENTER_VERTICAL; tag="Clip:${clip.id}"
+                            setOnClickListener { onTool("clipboard:paste:${clip.id}") }
+                            setOnLongClickListener { view ->
+                                PopupMenu(context,view).apply {
+                                    menu.add("Copy").setOnMenuItemClickListener { onTool("clipboard:copy:${clip.id}"); true }
+                                    menu.add(if(clip.pinned) "Unpin" else "Pin").setOnMenuItemClickListener { onTool("clipboard:pin:${clip.id}"); true }
+                                    menu.add("Delete").setOnMenuItemClickListener { onTool("clipboard:delete:${clip.id}"); true }
+                                    show()
+                                }; true
+                            }
+                        },LayoutParams(0,context.dp(70),1f).apply { setMargins(context.dp(2),context.dp(2),context.dp(2),context.dp(2)) })
+                    }
+                    repeat(columns-items.size) { row.addView(View(context),LayoutParams(0,context.dp(70),1f)) }
+                    list.addView(row)
+                }
+            }
+            section("Recent",ClipSection.RECENT,2)
+            if(clipboardPinnedOnly) section("Pinned",ClipSection.PINNED,2,"Old")
+            else section("Old copied",ClipSection.OLD,2,"Pinned")
+        }
+        list.tag="ClipboardList"
+        rows.addView(list,LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.WRAP_CONTENT))
     }
     fun backFromPanel():Boolean {
         if(settingsPage.isEmpty()) return false
@@ -625,6 +712,9 @@ class KeyboardView @JvmOverloads constructor(
 
     fun setHistoryAvailability(undo:Boolean,redo:Boolean) {
         (panel as? dev.raabta.keyboard.ui.ToolsPanel)?.historyAvailability(undo,redo)
+        for((tag,value) in listOf("Undo" to undo,"Redo" to redo)) toolbarButtons[tag]?.apply {
+            isEnabled=value; alpha=if(value) 1f else 0.38f
+        }
         for((tag,value) in listOf("edit:undo" to undo,"edit:redo" to redo)) findViewWithTag<View>(tag)?.apply { isEnabled=value; alpha=if(value) 1f else 0.38f }
     }
     override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
