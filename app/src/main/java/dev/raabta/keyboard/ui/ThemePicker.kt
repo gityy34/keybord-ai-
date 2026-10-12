@@ -10,7 +10,8 @@ class ThemePicker @JvmOverloads constructor(context: Context, private val change
         orientation = VERTICAL; tag = "ThemePicker"
         val active = KeyboardPreferences.load(context).theme
         val current = Palette.from(context)
-        val themes = KeyboardTheme.entries.filter { it != KeyboardTheme.CUSTOM || ThemeImport.load(context) != null }
+        val themes = KeyboardTheme.entries.filter { it != KeyboardTheme.CUSTOM } +
+            if (ThemeImport.load(context) != null) listOf(KeyboardTheme.CUSTOM) else emptyList()
         themes.chunked(2).forEach { items ->
             val row = LinearLayout(context)
             items.forEach { theme ->
@@ -24,8 +25,9 @@ class ThemePicker @JvmOverloads constructor(context: Context, private val change
                     background = colors.pressed(colors.background,context.dp(12).toFloat())
                     addView(TextView(context).apply { text = name; textSize = 13f; maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; setTextColor(colors.text); gravity=Gravity.CENTER })
                     val sample = LinearLayout(context).apply { gravity=Gravity.CENTER }
-                    for (key in listOf("Q","W","E")) sample.addView(TextView(context).apply {
-                        text=key; textSize=14f; gravity=Gravity.CENTER; setTextColor(colors.text); background=colors.shape(colors.key,context.dp(5).toFloat())
+                    for (key in listOf("Q","W","↵")) sample.addView(TextView(context).apply {
+                        text=key; textSize=14f; gravity=Gravity.CENTER; setTextColor(if(key=="↵") colors.onAccent else colors.text)
+                        background=colors.keyBackground(if(key=="↵") KeySurface.ENTER else KeySurface.NORMAL,context.dp(5).toFloat())
                     },LayoutParams(0,context.dp(28),1f).apply { setMargins(context.dp(2),context.dp(8),context.dp(2),0) })
                     addView(sample)
                     addView(TextView(context).apply {

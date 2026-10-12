@@ -48,7 +48,7 @@ class VoiceLevelView(context: Context) : View(context) {
         super.onDraw(canvas)
         val gap=width.toFloat()/samples.size
         for(i in samples.indices) {
-            paint.color=if(palette.colorful && i%2==1) palette.secondary else palette.accent
+            paint.color=if(palette.style==dev.raabta.keyboard.ui.SurfaceStyle.GLASS) palette.secondary else if(palette.colorful && i%2==1) palette.secondary else palette.accent
             val half=context.dp(1)+(height*0.42f)*samples[i]
             val x=gap*(i+0.5f); canvas.drawLine(x,height/2f-half,x,height/2f+half,paint)
         }

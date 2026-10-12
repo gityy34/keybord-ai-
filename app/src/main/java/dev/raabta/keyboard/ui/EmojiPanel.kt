@@ -21,7 +21,7 @@ class EmojiPanel @JvmOverloads constructor(context:Context,private val picked:(C
     private var resultScroll:View?=null
     private val search=KeyButton(context).apply {
         setText(dev.raabta.keyboard.R.string.emoji_search); contentDescription="Search emoji using keyboard"; tag="EmojiSearch"
-        setTextColor(palette.muted); background=rounded(palette.surface,context.dp(16).toFloat())
+        setTextColor(palette.muted); background=palette.shape(radius=context.dp(16).toFloat())
         fitLabel(14f); setOnClickListener { setSearchMode(true); searchMode(true) }
     }
     init {
@@ -43,7 +43,7 @@ class EmojiPanel @JvmOverloads constructor(context:Context,private val picked:(C
     fun setQuery(value:String) { query=value.take(40); search.text=query.ifEmpty { "Search emoji" }; render() }
     private fun button(label:String,value:String,click:()->Unit)=KeyButton(context).apply {
         text=label; tag=value; fitLabel(12f); setPadding(context.dp(7),0,context.dp(7),0)
-        setTextColor(palette.text); background=RippleDrawable(ColorStateList.valueOf(palette.ripple),rounded(palette.background,context.dp(6).toFloat()),null)
+        setTextColor(palette.text); background=palette.pressed(radius=context.dp(6).toFloat())
         setOnClickListener { click() }
     }
     private fun render() {

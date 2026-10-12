@@ -5,7 +5,8 @@ import android.content.Context
 
 enum class KeyboardTheme(val label: String) {
     SYSTEM("Follow phone"), LIGHT("Light"), DARK("Dark"), MIDNIGHT("Midnight"),
-    NEON("Neon Orbit"), PAPER("Paper White"), SPECTRUM("Spectrum"), CUSTOM("Imported theme")
+    NEON("Neon Orbit"), PAPER("Paper White"), SPECTRUM("Spectrum"), CUSTOM("Imported theme"),
+    GLASS("Neon Glass"), CHARCOAL("Soft Charcoal"), CLOUD("Cloud White")
 }
 enum class KeyboardHeight { COMPACT, NORMAL, TALL }
 

@@ -17,6 +17,8 @@ import dev.raabta.keyboard.ui.KeyboardOptions
 import dev.raabta.keyboard.ui.KeyboardSettingsPanel
 import dev.raabta.keyboard.R
 import dev.raabta.keyboard.ui.Palette
+import dev.raabta.keyboard.ui.KeySurface
+import dev.raabta.keyboard.ui.SurfaceStyle
 import dev.raabta.keyboard.ui.dp
 import dev.raabta.keyboard.ui.rounded
 import dev.raabta.keyboard.ui.KeyboardPreferences
@@ -57,7 +59,7 @@ class KeyboardView @JvmOverloads constructor(
     private val preferences = KeyboardPreferences.load(context)
     private val options = KeyboardOptions(context)
     private val optionFingerprint = options.fingerprint()
-    private val candidateRow = LinearLayout(context)
+    private val candidateRow = SuggestionStrip(context)
     private val candidateButtons = mutableListOf<Button>()
     private var panel: View? = null
     var settingsPage = ""
@@ -183,7 +185,7 @@ class KeyboardView @JvmOverloads constructor(
         minimumHeight = 0
         setPadding(0, 0, 0, 0)
         setTextColor(palette.text)
-        background = RippleDrawable(ColorStateList.valueOf(palette.ripple), rounded(palette.background, context.dp(8).toFloat()), null)
+        background = palette.pressed(if(palette.style==SurfaceStyle.FLAT) palette.background else palette.surface, context.dp(8).toFloat())
         layoutParams = LayoutParams(context.dp(40), context.dp(48))
         setOnClickListener { feedback.perform(this); action() }
     }
@@ -272,11 +274,12 @@ class KeyboardView @JvmOverloads constructor(
                 minimumHeight = 0
                 setPadding(0, 0, 0, 0)
                 setTextColor(if (key == Key.Enter) palette.onAccent else palette.text)
-                background = RippleDrawable(
-                    ColorStateList.valueOf(palette.ripple),
-                    palette.shape(if (key == Key.Enter) palette.accent else palette.key, context.dp(9).toFloat()),
-                    null,
-                )
+                background = palette.keyBackground(when (key) {
+                    Key.Enter -> KeySurface.ENTER
+                    Key.Space -> KeySurface.SPACE
+                    is Key.Text -> KeySurface.NORMAL
+                    else -> KeySurface.FUNCTION
+                }, context.dp(11).toFloat())
                 stateListAnimator = null
                 // Stable identifiers are also used by regression tests.
                 tag = when (key) {
@@ -488,7 +491,7 @@ class KeyboardView @JvmOverloads constructor(
             val button=Button(context).apply {
                 isAllCaps=false; setTextColor(palette.text); minWidth=0; minimumWidth=0
                 minHeight=0; minimumHeight=0; setPadding(context.dp(8),0,context.dp(8),0)
-                background=RippleDrawable(ColorStateList.valueOf(palette.ripple),rounded(palette.background,context.dp(6).toFloat()),null)
+                background=RippleDrawable(ColorStateList.valueOf(palette.ripple),rounded(if(palette.style==SurfaceStyle.FLAT) palette.background else android.graphics.Color.TRANSPARENT,context.dp(21).toFloat()),rounded(android.graphics.Color.WHITE,context.dp(21).toFloat()))
                 maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END; gravity=Gravity.CENTER; typeface=android.graphics.Typeface.DEFAULT
                 isSoundEffectsEnabled=false; stateListAnimator=null
             }
@@ -511,7 +514,7 @@ class KeyboardView @JvmOverloads constructor(
     fun setActiveTool(name:String) {
         toolbarButtons.forEach { (tag,button) ->
             button.isSelected=tag==name
-            button.background=RippleDrawable(ColorStateList.valueOf(palette.ripple),rounded(if(tag==name) palette.accent else palette.background,context.dp(9).toFloat()),null)
+            button.background=palette.toolbarBackground(toolbarButtons.keys.indexOf(tag),tag==name,context.dp(11).toFloat())
             button.setTextColor(if(tag==name) palette.onAccent else palette.icon(toolbarButtons.keys.indexOf(tag)))
         }
         toolbarButtons[name]?.let { button ->
