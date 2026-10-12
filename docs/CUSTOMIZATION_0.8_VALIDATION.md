@@ -1,6 +1,6 @@
 # 0.8.0 keyboard customization validation
 
-The existing IME remains the app entry point. `KeyboardView` keeps the typing surface and More panel in the current app; `ToolOrder` persists one ordered membership list for the toolbar and one for More. More remains visible at the right edge while the toolbar scrolls. Each tool retains its existing command route. Long-press a tile for Reorder or to move it between areas; drop it onto another tile in the same area to change order. Undo and Redo continue to reflect the editor history state.
+The existing IME remains the app entry point. `KeyboardView` keeps the typing surface and More panel in the current app; `ToolOrder` persists one ordered membership list for the toolbar and one for More. More remains visible at the right edge while the toolbar scrolls. Each tool retains its existing command route. Long-press a tile for Reorder or to move it between areas; hovering over another tile shifts intervening tiles to preview the new position, and dropping saves the order. Undo and Redo continue to reflect the editor history state.
 
 The three user-referenced styles are **Neon Glass**, **Soft Charcoal**, and **Cloud White**, using the central `Palette` already applied to keys and tool panels. `ThemePicker` now draws the complete keyboard at thumbnail scale in two columns and shows an Apply control. The existing themes and local JSON theme import remain available. The Enter face is a consistent arrow; editor action dispatch remains governed by `EditorPolicy` and the receiving field.
 

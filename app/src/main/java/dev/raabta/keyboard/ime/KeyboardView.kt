@@ -74,6 +74,7 @@ class KeyboardView @JvmOverloads constructor(
     private var toolbarContainer: View? = null
     private val toolbarButtons=mutableMapOf<String,Button>()
     private val toolOrder=ToolOrder(context)
+    private val toolbarDragOrigins=mutableMapOf<String,Int>()
     private var keyPopup: android.widget.PopupWindow? = null
     val floating get() = options.enabled("floating") && settingsPage.isEmpty()
     fun contentBounds():android.graphics.Rect {
@@ -175,6 +176,7 @@ class KeyboardView @JvmOverloads constructor(
     private fun refreshToolbar() {
         val bar=header ?: return
         bar.removeAllViews()
+        toolbarDragOrigins.clear()
         toolbarButtons.keys.filter { it!="Tools" }.toList().forEach(toolbarButtons::remove)
         toolOrder.toolbar().forEach { tool ->
             val button=if(tool.id=="Voice") microphone else headerButton(tool.glyph,R.string.keyboard_title) { onTool(tool.command) }
@@ -186,6 +188,7 @@ class KeyboardView @JvmOverloads constructor(
             button.setOnLongClickListener { view ->
                 PopupMenu(context,view).apply {
                     menu.add("Reorder").setOnMenuItemClickListener {
+                        rememberToolbarOrigins()
                         view.startDragAndDrop(ClipData.newPlainText("tool",tool.id),View.DragShadowBuilder(view),tool.id,0); true
                     }
                     menu.add("Move to Tools").setOnMenuItemClickListener {
@@ -197,15 +200,42 @@ class KeyboardView @JvmOverloads constructor(
             button.setOnDragListener { _,event ->
                 when(event.action) {
                     DragEvent.ACTION_DRAG_STARTED -> event.localState is String
+                    DragEvent.ACTION_DRAG_ENTERED -> {
+                        (event.localState as? String)?.let { previewToolbarOrder(it,tool.id) }; true
+                    }
                     DragEvent.ACTION_DROP -> {
                         val source=event.localState as? String ?: return@setOnDragListener false
                         toolOrder.reorder(source,tool.id,true); refreshToolbar(); true
+                    }
+                    DragEvent.ACTION_DRAG_ENDED -> {
+                        toolbarButtons.values.forEach { it.animate().translationX(0f).setDuration(100).start() }
+                        toolbarDragOrigins.clear(); true
                     }
                     else -> true
                 }
             }
         }
         setActiveTool("")
+    }
+    private fun rememberToolbarOrigins() {
+        toolbarDragOrigins.clear()
+        toolOrder.toolbar().forEach { tool -> toolbarButtons[tool.id]?.let { toolbarDragOrigins[tool.id]=it.left } }
+    }
+    private fun previewToolbarOrder(source:String,target:String) {
+        val ids=toolOrder.toolbar().map(KeyboardTool::id)
+        val from=ids.indexOf(source); val to=ids.indexOf(target)
+        if(from<0 || to<0) return
+        ids.forEachIndexed { index,id ->
+            val destination=when {
+                id==source -> id
+                from<to && index in (from+1)..to -> ids[index-1]
+                from>to && index in to until from -> ids[index+1]
+                else -> id
+            }
+            val here=toolbarDragOrigins[id] ?: return@forEachIndexed
+            val there=toolbarDragOrigins[destination] ?: return@forEachIndexed
+            toolbarButtons[id]?.animate()?.translationX((there-here).toFloat())?.setDuration(120)?.start()
+        }
     }
     private fun toolbarVisible(visible: Boolean) {
         toolbarContainer?.visibility=if(visible) View.VISIBLE else View.GONE

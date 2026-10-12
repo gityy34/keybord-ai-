@@ -21,6 +21,8 @@ class ToolsPanel @JvmOverloads constructor(
     private val order = ToolOrder(context)
     private val grid = LinearLayout(context)
     private val historyButtons = mutableMapOf<String, View>()
+    private val tileViews = mutableMapOf<String, View>()
+    private val dragOrigins = mutableMapOf<String, Pair<Int, Int>>()
     private var undoAvailable = false
     private var redoAvailable = false
     init {
@@ -56,7 +58,7 @@ class ToolsPanel @JvmOverloads constructor(
         else -> R.drawable.ic_ai
     }
     private fun populate(action: (String) -> Unit) {
-        grid.removeAllViews(); historyButtons.clear()
+        grid.removeAllViews(); historyButtons.clear(); tileViews.clear(); dragOrigins.clear()
         order.more().chunked(3).forEachIndexed { rowIndex, tools ->
             val row=LinearLayout(context).apply { isBaselineAligned=false; tag="ToolRow:$rowIndex" }
             tools.forEachIndexed { column,tool ->
@@ -77,6 +79,7 @@ class ToolsPanel @JvmOverloads constructor(
                     setOnLongClickListener { view ->
                         PopupMenu(context,view).apply {
                             menu.add("Reorder").setOnMenuItemClickListener {
+                                rememberOrigins()
                                 view.startDragAndDrop(ClipData.newPlainText("tool",tool.id),View.DragShadowBuilder(view),tool.id,0); true
                             }
                             menu.add("Move to Toolbar").setOnMenuItemClickListener {
@@ -88,21 +91,53 @@ class ToolsPanel @JvmOverloads constructor(
                     setOnDragListener { _,event ->
                         when(event.action) {
                             DragEvent.ACTION_DRAG_STARTED -> event.localState is String
+                            DragEvent.ACTION_DRAG_ENTERED -> {
+                                (event.localState as? String)?.let { previewOrder(it,tool.id) }; true
+                            }
                             DragEvent.ACTION_DROP -> {
                                 val source=event.localState as? String ?: return@setOnDragListener false
                                 order.reorder(source,tool.id,false); populate(action); true
                             }
+                            DragEvent.ACTION_DRAG_ENDED -> { resetPreview(); true }
                             else -> true
                         }
                     }
                 }
                 if(tool.command=="edit:undo" || tool.command=="edit:redo") historyButtons[tool.command]=tile
+                tileViews[tool.id]=tile
                 row.addView(tile,LayoutParams(0,context.dp(80),1f).apply { setMargins(context.dp(3),context.dp(3),context.dp(3),context.dp(3)) })
             }
             repeat(3-tools.size) { row.addView(View(context),LayoutParams(0,context.dp(80),1f)) }
             grid.addView(row)
         }
         historyAvailability(undoAvailable,redoAvailable)
+    }
+    private fun rememberOrigins() {
+        dragOrigins.clear()
+        tileViews.forEach { (id,view) ->
+            val point=IntArray(2); view.getLocationInWindow(point); dragOrigins[id]=point[0] to point[1]
+        }
+    }
+    private fun previewOrder(source:String,target:String) {
+        val ids=order.more().map(KeyboardTool::id)
+        val from=ids.indexOf(source); val to=ids.indexOf(target)
+        if(from<0 || to<0) return
+        ids.forEachIndexed { index,id ->
+            val destination=when {
+                id==source -> id
+                from<to && index in (from+1)..to -> ids[index-1]
+                from>to && index in to until from -> ids[index+1]
+                else -> id
+            }
+            val here=dragOrigins[id] ?: return@forEachIndexed
+            val there=dragOrigins[destination] ?: return@forEachIndexed
+            tileViews[id]?.animate()?.translationX((there.first-here.first).toFloat())
+                ?.translationY((there.second-here.second).toFloat())?.setDuration(120)?.start()
+        }
+    }
+    private fun resetPreview() {
+        tileViews.values.forEach { it.animate().translationX(0f).translationY(0f).setDuration(100).start() }
+        dragOrigins.clear()
     }
     fun historyAvailability(undo: Boolean, redo: Boolean) {
         undoAvailable=undo; redoAvailable=redo
