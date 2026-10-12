@@ -206,7 +206,7 @@ class AdvancedKeyboardTest {
     @Test fun toolboxIncludesEditingAndFloatingControls() {
         click("Tools")
         assertNotNull(view.findViewWithTag<View>("settings:Text editing"))
-        assertNotNull(view.findViewWithTag<View>("option:floating"))
+        assertNotNull(view.findViewWithTag<View>("settings:Floating"))
         click("settings:Text editing")
         assertNull(shadowOf(service).nextStartedActivity)
         assertEquals("",field.text.toString())

@@ -8,7 +8,7 @@ Android **8.0 or newer** is required.
 
 ## Install and start typing
 
-1. [Download APK 0.6.0 for your OPPO / ARM64 phone](https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-complete-0.6.0/raabta-keyboard-0.6.0.apk), or obtain it from GitHub Actions below. Sign in to GitHub first if the repository is private.
+1. [Download APK 0.7.0 for your OPPO / ARM64 phone](https://github.com/gityy34/keybord-ai-/raw/refs/heads/apk-polish-0.7.0/raabta-keyboard-0.7.0.apk), or obtain it from GitHub Actions below. Sign in to GitHub first if the repository is private.
 2. Open the APK on your Android phone. If Android asks, allow your browser/file manager to install this app.
 3. Open **Raabta Keyboard**.
 4. Tap **1 · Enable Raabta**, find **Raabta Keyboard**, and turn it on. Android displays its standard keyboard-access warning. Menu names vary by manufacturer.
@@ -29,7 +29,7 @@ rotation, offline scenarios, and sustained daily use still need specific results
 
 Open **More → Settings** for full category settings. Android’s keyboard settings entry and the launcher’s **Keyboard settings** button open the same category design. Enable/select/test onboarding remains separate. Choose:
 
-- **Phone theme**, **Light**, or **Dark**; keyboard and setup colors follow the saved choice.
+- Existing **Phone theme**, **Light**, **Dark** and **Midnight**, plus **Neon Orbit**, **Paper White** and **Spectrum**. Shared colors apply to keys, toolbar, grids, AI results, translation, voice and menus. **More → Themes** opens previews directly. **Import theme** applies a validated local color-only JSON definition; [working example](docs/themes/neon-orbit.json).
 - **Compact**, **Normal**, or **Tall** height. Landscape uses shorter rows; wide screens center the keys.
 - **Always show number row** to add digits above the letters.
 - **Typing sensitivity** adjusts tap movement tolerance (default 80/100); ordinary key commits have no deliberate delay. **Suggestion response delay** adjusts suggestion refresh from 0–200 ms (default 16 ms), independently of typing. These controls do not throttle typing or speed up a remote provider.
@@ -37,13 +37,17 @@ Open **More → Settings** for full category settings. Android’s keyboard sett
 - **Backspace hold delay** (200/400/600 ms) and **repeat speed** (55/85/120 ms); held Shift keeps Android’s native timing.
 - **Vibrate on keypress** and **Sound on keypress** independently. Sound is off by default; feedback respects Android's haptic/touch-sound settings and silent mode. Missing hardware never interrupts typing.
 
+The Tools grid has three equal columns. **Undo/Redo** restore supported edits and cursor/selection, with unavailable controls dimmed. Temporary history is limited to 20 edits/4,096 characters and clears when the field/window changes; password/private fields never enter history. External edits are checked before restoration.
+
 In-keyboard settings update the view immediately; changes made from the launcher apply when the keyboard is shown again. Explicit dictionary entries, recent emoji and optional learned-word frequencies are stored locally; sentences and editor context are not recorded. Keys use native press ripples;
 held Backspace and held Shift remain supported. Changing the setup theme clears its disposable test fields.
 Phone comfort, rotation and sustained typing still need real-device acceptance; no Gboard performance parity is claimed.
 
 ## Voice typing
 
-The 0.6.0 download uses the same debug signing certificate as the delivered 0.1.0 APK and can update it
+Voice uses its own keyboard-sized workspace with language, real RMS timeline, timer, live draft, Stop, Cancel/Back, Delete and Retry. **Delete** discards an attempt or safely removes its unchanged most recent supported voice insertion; **Cancel** leaves already committed text intact. The microphone request runs directly on tap; Listening follows the system Ready callback. Fast mode requests latency-oriented formatting. The app-added utterance restart wait is 150 ms; hardware/model startup and Urdu accuracy remain provider-dependent.
+
+The 0.7.0 download uses the same debug signing certificate as the delivered 0.1.0 APK and can update it
 without uninstalling. Version 0.1.1 failed its voice test on the user’s OPPO Reno 11 5G (reported Android 16), with an unsupported-language/model error. The user subsequently reported online English/Urdu recognition working, with Urdu mistakes and short-pause completion issues. Version 0.2.1 added buffered Stop/long-pause completion; 0.3.0 and 0.5.0 retain those controls.
 
 1. In **Voice typing** settings, choose **English voice**, **Urdu voice**, or **Auto-detect English / Urdu** (Android 14+, provider support required). Voice language and the **Languages** key-layout setting are independent.
@@ -99,9 +103,9 @@ floating, undo and clipboard. Drag the title in floating mode; switching fields/
 
 - **Swipe Backspace:** drag left to highlight increasingly many words; release to delete. Reverse/cancel keeps text. Tap/hold deletion remains supported.
 
-See [0.6 validation and remaining acceptance gates](docs/COMPLETE_0.6_VALIDATION.md) and [reference review](docs/CLEVERTYPE_REFERENCE_0.5.md), and the earlier [screenshot feature matrix](docs/SETTINGS_0.3_VALIDATION.md). Device smoothness,
+See [0.7 redesign validation and remaining acceptance gates](docs/POLISH_0.7_VALIDATION.md) and [reference review](docs/CLEVERTYPE_REFERENCE_0.5.md), and the earlier [screenshot feature matrix](docs/SETTINGS_0.3_VALIDATION.md). Device smoothness,
 app-specific spans/paste/undo, gesture feel and Urdu layout comfort remain OPPO phone acceptance checks.
-If a private GitHub download opens a page without downloading, use [the APK file page](https://github.com/gityy34/keybord-ai-/blob/apk-complete-0.6.0/raabta-keyboard-0.6.0.apk)
+If a private GitHub download opens a page without downloading, use [the APK file page](https://github.com/gityy34/keybord-ai-/blob/apk-polish-0.7.0/raabta-keyboard-0.7.0.apk)
 in Chrome, sign in with repository access and select **Download raw file / View raw**.
 
 ## Translation, Roman Urdu and AI Write
@@ -110,7 +114,7 @@ Tap **Translate**. Select source/target languages, download their ML Kit model e
 
 **More → Roman Urdu → Urdu** converts common spellings using the existing original offline lexicon. Unknown words remain unchanged.
 
-**AI / Fix Grammar / Rewrite / Tone** remain inside your current app. AI assistance includes Ask AI, Reply, Summary and Explain. Rewrite includes Paraphrase, Shorten, Expand, Improve, Professional, Casual, Creative and Clearer. Tone provides Professional, Casual, Polite, Friendly, Formal, Empathetic, Funny, Creative, Short and Custom. Grammar uses the configured backend. Tapping Grammar with text, choosing a rewrite/tone, or pressing Generate intentionally submits only the displayed draft. Normal typing does not submit text. AI tools capture selected text or a bounded nearby sentence. Results have **Replace · Insert · Copy · Regenerate · Cancel**, with stale-editor protection and optional Show changes. Ordinary key rows stay available; smaller panels scroll.
+**AI / Fix Grammar / Rewrite / Tone** remain inside your current app. AI assistance includes Ask AI, Reply, Summary and Explain. Rewrite includes Paraphrase, Shorten, Expand, Improve, Professional, Casual, Creative and Clearer. Tone provides Professional, Casual, Polite, Friendly, Formal, Empathetic, Funny, Creative, Short and Custom. Grammar uses the configured backend. Tapping Grammar with text, choosing a rewrite/tone, or pressing Generate intentionally submits only the displayed draft. Normal typing does not submit text. AI tools capture selected text or a bounded nearby sentence. Results have **Replace · Insert · Copy · Regenerate · Cancel**, with stale-editor protection and optional Show changes. Tool workspaces temporarily replace the keys inside the same keyboard height. Use **Edit** to type a local draft, **Done** to return to the panel, and the header back arrow to return directly to normal typing. Smaller workspaces use compact headers and independently scrolling response cards.
 
 Open **Settings → Connections** or **More → Connections** to see the saved/active provider, model, HTTPS connection type, masked key and actual last-test status. Existing configuration is preserved until you explicitly Save or Delete. Save, Test Connection, Activate, Deactivate, Change Provider and Use My Own API Key are connected to real logic. Tokens are encrypted using Android Keystore; no private API key is bundled.
 
@@ -131,7 +135,7 @@ The workflow runs on pushes, pull requests, and manual dispatch. It installs Jav
 runs unit/service tests and Android lint, builds a debug APK, and uploads the APK and validation reports.
 Actions versions were checked against their current official documentation during implementation.
 Source code and the Gradle wrapper are tracked; APKs, caches, SDKs, signing keys, and local config are ignored in the development branch.
-The separate `apk-phase-1-0.1.0`, `apk-voice-0.1.1`, and `apk-phase-2-0.2.0`, and `apk-voice-0.2.1`, `apk-keyboard-0.3.0`, `apk-tools-0.4.0`, `apk-ui-0.5.0`, `apk-complete-0.6.0` branches contain verified APKs as direct-download fallbacks while cloud access to
+The separate `apk-phase-1-0.1.0`, `apk-voice-0.1.1`, and `apk-phase-2-0.2.0`, and `apk-voice-0.2.1`, `apk-keyboard-0.3.0`, `apk-tools-0.4.0`, `apk-ui-0.5.0`, `apk-complete-0.6.0`, `apk-polish-0.7.0` branches contain verified APKs as direct-download fallbacks while cloud access to
 the Actions API is blocked. Future builds should use Actions artifacts or release assets.
 
 Delivered APKs retain the same signing key and can update the previous installation. A CI debug build may have a different signer; use the delivered APK and diagnose the signature before removing an installation and its local settings.
@@ -170,6 +174,6 @@ Each cloud task is already isolated: use the existing checkout; do not create a 
 
 ## Privacy and scope
 
-Ordinary typing goes directly to the active app through `InputConnection` and is not uploaded. Optional learned words store bounded word frequencies locally; passwords/private fields are excluded. Voice uses Android's speech provider and may process audio online. Translation uses Google ML Kit on-device after explicit model download; the SDK may send diagnostics. AI sends only the displayed tool draft after an explicit AI action (Grammar tap, rewrite/tone choice, Generate or Retry). No API key/provider is bundled. Clipboard/contact previews and voice/writing drafts are temporary; settings, explicit dictionary words and recent emoji may persist. Android cloud backup/device transfer of app files are excluded.
+Ordinary typing goes directly to the active app through `InputConnection` and is not uploaded. Optional learned words store bounded word frequencies locally; passwords/private fields are excluded. Voice uses Android's speech provider and may process audio online. Translation uses Google ML Kit on-device after explicit model download; the SDK may send diagnostics. AI sends only the displayed tool draft after an explicit AI action (Grammar tap, rewrite/tone choice, Generate or Retry). No API key/provider is bundled. Clipboard/contact previews, voice/writing drafts and bounded per-field undo history are temporary; settings, explicit dictionary words and recent emoji may persist. Android cloud backup/device transfer of app files are excluded.
 
-This is an original testing keyboard, with small offline word/grammar/glide/Roman Urdu lexicons. Translation output, system speech accuracy, host editing/media support, physical-device latency and stability require phone acceptance. Broad dictionaries, sophisticated glide recognition, online media search and production release signing remain future work. Current validation and security evidence are in [0.6 validation](docs/COMPLETE_0.6_VALIDATION.md) and [security review](docs/WRITING_TOOLS_0.4_SECURITY.md).
+This is an original testing keyboard, with small offline word/grammar/glide/Roman Urdu lexicons. Translation output, system speech accuracy, host editing/media support, physical-device latency and stability require phone acceptance. Broad dictionaries, sophisticated glide recognition, online media search and production release signing remain future work. Current validation and security evidence are in [0.7 validation](docs/POLISH_0.7_VALIDATION.md) and [security review](docs/WRITING_TOOLS_0.4_SECURITY.md).

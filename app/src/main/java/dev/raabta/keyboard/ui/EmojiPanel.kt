@@ -17,10 +17,12 @@ class EmojiPanel @JvmOverloads constructor(context:Context,private val picked:(C
     private var category="Recent"
     private var query=""
     private val grid=LinearLayout(context).apply { orientation=VERTICAL }
+    private var categoryStrip:View?=null
+    private var resultScroll:View?=null
     private val search=KeyButton(context).apply {
         setText(dev.raabta.keyboard.R.string.emoji_search); contentDescription="Search emoji using keyboard"; tag="EmojiSearch"
         setTextColor(palette.muted); background=rounded(palette.surface,context.dp(16).toFloat())
-        fitLabel(14f); setOnClickListener { searchMode(true) }
+        fitLabel(14f); setOnClickListener { setSearchMode(true); searchMode(true) }
     }
     init {
         tag="EmojiPanel"; orientation=VERTICAL
@@ -29,14 +31,15 @@ class EmojiPanel @JvmOverloads constructor(context:Context,private val picked:(C
         listOf("Recent","Faces","Hearts","Nature","Food","Travel","Activities","Objects").forEach { value ->
             categories.addView(button(value,"emoji-category:$value") { category=value; query=""; search.setText(dev.raabta.keyboard.R.string.emoji_search); render() },LayoutParams(LayoutParams.WRAP_CONTENT,context.dp(40)))
         }
-        addView(HorizontalScrollView(context).apply { isHorizontalScrollBarEnabled=false; addView(categories) })
-        addView(ScrollView(context).apply { addView(grid) },LayoutParams(LayoutParams.MATCH_PARENT,context.dp(185)))
+        addView(HorizontalScrollView(context).apply { isHorizontalScrollBarEnabled=false; addView(categories) }.also { categoryStrip=it })
+        addView(ScrollView(context).apply { addView(grid) }.also { resultScroll=it },LayoutParams(LayoutParams.MATCH_PARENT,0,1f))
         val bottom=LinearLayout(context)
         bottom.addView(button("ABC","EmojiBack",close),LayoutParams(0,context.dp(42),1f))
         bottom.addView(button("GIF / Stickers","EmojiMedia",media),LayoutParams(0,context.dp(42),1f))
         bottom.addView(button("Clear search","EmojiClear") { setQuery("") },LayoutParams(0,context.dp(42),1f))
         addView(bottom); render()
     }
+    fun setSearchMode(value:Boolean) { categoryStrip?.visibility=if(value) GONE else VISIBLE; resultScroll?.visibility=if(value) GONE else VISIBLE }
     fun setQuery(value:String) { query=value.take(40); search.text=query.ifEmpty { "Search emoji" }; render() }
     private fun button(label:String,value:String,click:()->Unit)=KeyButton(context).apply {
         text=label; tag=value; fitLabel(12f); setPadding(context.dp(7),0,context.dp(7),0)

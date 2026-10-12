@@ -14,6 +14,7 @@ import dev.raabta.keyboard.setup.SetupActivity
 import android.widget.Toast
 import dev.raabta.keyboard.R
 import dev.raabta.keyboard.voice.*
+import dev.raabta.keyboard.ui.Palette
 import dev.raabta.keyboard.ui.KeyboardOptions
 import dev.raabta.keyboard.setup.OptionalPermissionActivity
 import android.os.Handler
@@ -41,6 +42,19 @@ class RaabtaInputMethodService : InputMethodService() {
     private var keyboard: KeyboardView? = null
     private var editor = EditorInfo()
     private var editorGeneration = 0
+    private val editHistory = EditHistory()
+    private var rawEditor: android.view.inputmethod.InputConnection? = null
+    private var trackedEditor: android.view.inputmethod.InputConnection? = null
+    private var voiceEditId: Long? = null
+    private var voiceCommitted=false
+    override fun getCurrentInputConnection(): android.view.inputmethod.InputConnection? {
+        val raw = super.getCurrentInputConnection() ?: return null
+        if (!VoicePolicy.allows(editor)) return raw
+        if (raw !== rawEditor) {
+            editHistory.clear(); voiceEditId=null; rawEditor=raw; trackedEditor=editHistory.wrap(raw)
+        }
+        return trackedEditor
+    }
     private var awaitingVoicePermission = false
     private val options by lazy { KeyboardOptions(this) }
     private val learned by lazy { LearnedWords(this) }
@@ -86,7 +100,7 @@ class RaabtaInputMethodService : InputMethodService() {
     internal var speechEngineFactory = SpeechEngineFactory { listener -> DeviceSpeechEngine(this, listener) }
     private val voice by lazy {
         VoiceController(SpeechEngineFactory { speechEngineFactory.create(it) }, { keyboard?.setVoiceState(it) }, ::voiceError,
-            { keyboard?.showVoicePreview(it) }, { VoiceSettings.pauseMillis(this) }, { VoiceSettings.finalWaitMillis(this) }, { keyboard?.setVoiceLevel(it) })
+            { keyboard?.showVoicePreview(it) }, { VoiceSettings.pauseMillis(this) }, { VoiceSettings.finalWaitMillis(this) }, { keyboard?.setVoiceLevel(it) }, { keyboard?.voiceReady() })
     }
 
     override fun onCreateInputView(): View = KeyboardView(
@@ -111,6 +125,7 @@ class RaabtaInputMethodService : InputMethodService() {
         onTool = ::tool,
         onCandidate = ::chooseCandidate,
     ).also {
+        window.window?.let { imeWindow -> Palette.from(this).applySystemBars(imeWindow) }
         keyboard = it
         it.render(EditorPolicy.enterLabel(editor))
         it.setVoiceAllowed(VoicePolicy.allows(editor))
@@ -156,6 +171,7 @@ class RaabtaInputMethodService : InputMethodService() {
         ++editorGeneration
         keyboard?.cancelRepeats()
         editor = attribute
+        editHistory.clear(); rawEditor=null; trackedEditor=null; voiceEditId=null
         val capsMode = currentInputConnection?.getCursorCapsMode(attribute.inputType) ?: 0
         state.reset(EditorPolicy.isNumeric(attribute), options.enabled("auto_capitalization") && capsMode != 0)
         candidateBefore=""; clipboard.clear(); contactNames=emptyList(); spaceTime=-1
@@ -189,7 +205,7 @@ class RaabtaInputMethodService : InputMethodService() {
                     if (previousShift != state.shift) keyboard?.updateShift()
                 }
             }
-            Key.Space -> space(connection)
+            Key.Space -> if(connection!=null) editHistory.transaction("spacing",connection) { space(connection) }
             Key.Delete -> EditorCommands.delete(connection)
             Key.Enter -> { learnBoundary(); EditorCommands.enter(connection, editor) }
             Key.Emoji -> keyboard?.showEmojiPicker()
@@ -222,6 +238,7 @@ class RaabtaInputMethodService : InputMethodService() {
         ++editorGeneration
         keyboard?.cancelRepeats()
         editor = EditorInfo()
+        editHistory.clear(); rawEditor=null; trackedEditor=null; voiceEditId=null
         state.reset(numeric = false, capitalized = false)
         super.onFinishInput()
     }
@@ -248,6 +265,7 @@ class RaabtaInputMethodService : InputMethodService() {
 
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        editHistory.selectionChanged(newSelStart,newSelEnd)
         if (oldSelStart != newSelStart || oldSelEnd != newSelEnd) {
             voice.cancel(); refreshSuggestions()
             if(writingMode.isNotEmpty()) closeWriting()
@@ -256,7 +274,7 @@ class RaabtaInputMethodService : InputMethodService() {
 
     private fun toggleVoice() {
         if(customEditing) { keyboard?.showTextMessage("Finish the custom instruction first using Use tool."); return }
-        if(writingMode=="translate") keyboard?.hideVoiceLanguages() else keyboard?.showVoiceLanguages()
+        keyboard?.showVoiceLanguages(if(writingMode=="translate") when(writingSource) { "ur" -> VoiceSettings.URDU; "en" -> VoiceSettings.ENGLISH; "auto" -> VoiceSettings.MIXED; else -> writingSource } else VoiceSettings.language(this))
         if (voice.active) { voice.stop(); return }
         if (!VoicePolicy.allows(editor)) { message(R.string.voice_blocked); return }
         if (writingMode!="translate" && VoiceSettings.language(this) == VoiceSettings.MIXED && Build.VERSION.SDK_INT < 34) {
@@ -273,6 +291,7 @@ class RaabtaInputMethodService : InputMethodService() {
         val revision = writingRevision
         val toolMode = writingMode
         val language = if(toolMode=="translate") { when(writingSource) { "ur" -> VoiceSettings.URDU; "en" -> VoiceSettings.ENGLISH; "auto" -> VoiceSettings.MIXED; else -> writingSource } } else VoiceSettings.language(this)
+        voiceEditId=null; voiceCommitted=false
         voice.start(language) { result ->
             if (generation != editorGeneration || currentInputConnection !== connection || !VoicePolicy.allows(editor)) {
                 message(R.string.voice_error_insert)
@@ -283,7 +302,12 @@ class RaabtaInputMethodService : InputMethodService() {
                 writingDraft=(writingDraft+if(writingDraft.isEmpty()) "" else " ")+result
                 writingResult=""; writingVariants=emptyList(); keyboard?.showVoicePreview("")
                 if(voiceToTranslation && toolMode=="translate") runWriting(autoInsert=true) else updateWriting("Voice draft ready.")
-            } else if (!EditorCommands.type(connection, result)) message(R.string.voice_error_insert) else keyboard?.showVoiceCompleted()
+            } else {
+                val inserted=editHistory.transaction("voice",connection) { EditorCommands.type(connection,result) }
+                if(!inserted) message(R.string.voice_error_insert) else {
+                    voiceCommitted=true; voiceEditId=editHistory.lastEditId; keyboard?.showVoiceCompleted(result)
+                }
+            }
             refreshSuggestions()
         }
     }
@@ -477,11 +501,11 @@ class RaabtaInputMethodService : InputMethodService() {
         if(editorAnchor()!=writingAnchor) { updateWriting("The cursor or text changed. Reload the selection before inserting."); return }
         try {
             val connection=currentInputConnection ?: return
-            val done=if(replace && writingTargetText!=null) writingTargetText!!.replace(connection,writingResult) else if(!replace && !connection.getSelectedText(0).isNullOrEmpty()) {
+            val done=editHistory.transaction("writing",connection) { if(replace && writingTargetText!=null) writingTargetText!!.replace(connection,writingResult) else if(!replace && !connection.getSelectedText(0).isNullOrEmpty()) {
                 val selected=connection.getSelectedText(1)
                 if(selected==null || selected.length>2000) { updateWriting("Place the cursor where you want to insert, then retry."); false }
                 else connection.commitText(android.text.TextUtils.concat(selected,writingResult),1)
-            } else EditorCommands.type(connection,writingResult)
+            } else EditorCommands.type(connection,writingResult) }
             if(done) { closeWriting(); refreshSuggestions() }
             else updateWriting("This editor did not accept the result.")
         } catch (_:RuntimeException) { updateWriting("The editor is no longer available.") }
@@ -521,6 +545,7 @@ class RaabtaInputMethodService : InputMethodService() {
         if(!VoicePolicy.allows(editor) && !candidate.emoji) return
         if(SystemClock.uptimeMillis()>candidate.expiresAt) { clipboard.clear(); refreshSuggestions(); return }
         val connection=currentInputConnection ?: return
+        connection.beginBatchEdit()
         try {
             if(candidate.imageUri!=null) {
                 val uri=candidate.imageUri.toUri()
@@ -539,7 +564,7 @@ class RaabtaInputMethodService : InputMethodService() {
                 else learningBuffer=""
                 state.afterCharacter(); keyboard?.updateShift()
             }
-        } catch (_:RuntimeException) { keyboard?.showTextMessage("The editor or clipboard content is no longer available.") }
+        } catch (_:RuntimeException) { keyboard?.showTextMessage("The editor or clipboard content is no longer available.") } finally { connection.endBatchEdit() }
         refreshSuggestions()
     }
     private fun space(connection:android.view.inputmethod.InputConnection?) {
@@ -575,14 +600,29 @@ class RaabtaInputMethodService : InputMethodService() {
         }
     }
     private fun tool(name:String) {
+        if(name=="voice:retry") { voice.cancel(); keyboard?.showVoicePreview(""); toggleVoice(); return }
+        if(name=="voice:delete") {
+            var cannotRemove=false
+            voice.cancel()
+            if(voiceCommitted) {
+                val raw=super.getCurrentInputConnection()
+                cannotRemove=raw==null || voiceEditId==null || !editHistory.undo(raw,voiceEditId,discard=true)
+            }
+            voiceCommitted=false; voiceEditId=null; keyboard?.showVoicePreview(""); keyboard?.dismissVoiceStatus()
+            if(cannotRemove) keyboard?.showTextMessage("The editor changed or cannot safely remove this transcription. Select it to delete manually.")
+            if(writingMode.isNotEmpty()) { writingDraft=""; writingResult=""; writingVariants=emptyList(); voiceToTranslation=false; stopWritingRequest(); updateWriting("Voice draft deleted.") }
+            refreshSuggestions(); return
+        }
         if(name=="writing:voice") { writingDraft=""; writingTargetText=null; writingAnchor=editorAnchor(); voiceToTranslation=true; toggleVoice(); return }
+        val wasListening=voice.active
         voice.cancel()
         if(name.startsWith("writing:")) { writingAction(name.substringAfter(':')); return }
         if(name.startsWith("voice-language:")) {
-            voiceToTranslation=false
+            if(writingMode!="translate") voiceToTranslation=false
+            else writingSource=when(name.substringAfter(':')) { VoiceSettings.URDU -> "ur"; VoiceSettings.ENGLISH -> "en"; else -> "auto" }
             VoiceSettings.setLanguage(this,name.substringAfter(':'))
             if(name.substringAfter(':')!=VoiceSettings.MIXED) VoiceSettings.setMixedPrimary(this,name.substringAfter(':'))
-            keyboard?.showVoiceLanguages(); return
+            keyboard?.showVoiceLanguages(name.substringAfter(':')); if(wasListening) toggleVoice(); return
         }
         if(name in listOf("translate","ai","roman","grammar","rewrite","tone")) {
             writingAutoStyle=name in listOf("rewrite","tone")
@@ -594,13 +634,18 @@ class RaabtaInputMethodService : InputMethodService() {
         }
         closeWriting(); learningBuffer=""
         when(name) {
-            "tools" -> { keyboard?.showSettings("Tools"); keyboard?.setActiveTool("Tools") }
+            "tools" -> { keyboard?.showSettings("Tools"); keyboard?.setHistoryAvailability(editHistory.canUndo,editHistory.canRedo) }
+            "themes" -> keyboard?.showSettings("Theme")
+            "languages" -> keyboard?.showSettings("Languages")
+            "resize", "one_handed" -> keyboard?.showSettings("Preferences")
+            "floating" -> { options.set("floating",!options.enabled("floating")); setInputView(onCreateInputView()) }
+            "theme:import" -> startActivity(Intent(this,dev.raabta.keyboard.setup.ThemeImportActivity::class.java).putExtra("from_keyboard",true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             "voice:retry" -> toggleVoice()
             "settings" -> { keyboard?.showSettings(""); startActivity(Intent(this,dev.raabta.keyboard.setup.KeyboardSettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             "connections" -> { keyboard?.showConnections(AiConnection(this)); keyboard?.setActiveTool("Tools") }
             "connection:test" -> testProvider()
             "connection:toggle" -> { val settings=AiConnection(this); settings.setActive(!settings.active()); keyboard?.showConnections(settings) }
-            "editing" -> keyboard?.showEditingTools()
+            "editing" -> { keyboard?.showEditingTools(); keyboard?.setHistoryAvailability(editHistory.canUndo,editHistory.canRedo) }
             "emoji" -> keyboard?.showEmojiPicker()
             "media" -> keyboard?.showMediaPicker()
             "clipboard", "clipboard:refresh" -> {
@@ -619,12 +664,18 @@ class RaabtaInputMethodService : InputMethodService() {
             "ai:clear" -> AiConnection(this).clear()
             "permissions" -> startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,"package:$packageName".toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             "share" -> startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                type="text/plain"; putExtra(Intent.EXTRA_TEXT,"Raabta Keyboard: https://github.com/gityy34/keybord-ai-/tree/apk-complete-0.6.0")
+                type="text/plain"; putExtra(Intent.EXTRA_TEXT,"Raabta Keyboard: https://github.com/gityy34/keybord-ai-/tree/apk-polish-0.7.0")
             },"Share Raabta").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             else -> if(name.startsWith("edit:")) {
                 val connection=currentInputConnection
                 val command=name.substringAfter(':')
                 try {
+                    if(command in listOf("undo","redo")) {
+                        val raw=super.getCurrentInputConnection()
+                        val success=raw!=null && VoicePolicy.allows(editor) && if(command=="undo") editHistory.undo(raw) else editHistory.redo(raw)
+                        if(!success) keyboard?.showTextMessage("No supported edit is available to $command.")
+                        keyboard?.setHistoryAvailability(editHistory.canUndo,editHistory.canRedo); refreshSuggestions(); return
+                    }
                     val contextAction=when(command) { "selectAll" -> android.R.id.selectAll; "copy" -> android.R.id.copy; "cut" -> android.R.id.cut; "paste" -> android.R.id.paste; "undo" -> android.R.id.undo; "redo" -> android.R.id.redo; else -> null }
                     if(contextAction!=null) {
                         if(VoicePolicy.allows(editor) && connection?.performContextMenuAction(contextAction)!=true) keyboard?.showTextMessage("This app does not support that editing action.")
@@ -633,7 +684,7 @@ class RaabtaInputMethodService : InputMethodService() {
                         val code=if(command=="home") KeyEvent.KEYCODE_MOVE_HOME else KeyEvent.KEYCODE_MOVE_END
                         connection?.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,code)); connection?.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP,code))
                     }
-                    refreshSuggestions()
+                    keyboard?.setHistoryAvailability(editHistory.canUndo,editHistory.canRedo); refreshSuggestions()
                 } catch (_:RuntimeException) { keyboard?.showTextMessage("The editor is no longer available.") }
             } else if(name.startsWith("media:")) {
                 val parts=name.split(':')
@@ -688,6 +739,7 @@ class RaabtaInputMethodService : InputMethodService() {
     }
     private fun hideTools() {
         showing=false; closeWriting(); learningBuffer=""; deleteSelection.cancel(); deleting=false; keyboard?.hideVoiceLanguages(); ui.removeCallbacks(suggestionUpdate); clipboard.clear(); contactNames=emptyList()
+        editHistory.clear(); voiceEditId=null
         try { getSystemService(ClipboardManager::class.java)?.removePrimaryClipChangedListener(clipboardListener); contentResolver.unregisterContentObserver(screenshotObserver) } catch (_:RuntimeException) { }
     }
     private fun loadContacts() {

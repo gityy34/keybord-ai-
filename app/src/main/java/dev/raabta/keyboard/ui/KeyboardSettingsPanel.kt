@@ -13,7 +13,7 @@ import dev.raabta.keyboard.tools.AiConnection
 /** Shared categories for full-screen settings and the in-IME tools menu. */
 class KeyboardSettingsPanel @JvmOverloads constructor(
     context: Context, private val page: String = "Raabta settings", private val navigate: (String) -> Unit = {},
-    private val changed: () -> Unit = {}, private val action: (String) -> Unit = {},
+    private val changed: () -> Unit = {}, private val action: (String) -> Unit = {}, private val internal: Boolean = false,
 ) : LinearLayout(context) {
     private val options = KeyboardOptions(context)
     private val palette = Palette.from(context)
@@ -25,7 +25,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(palette.surface) }
         header.addView(dev.raabta.keyboard.ime.ToolbarButton(context).apply {
             text = "‹"; contentDescription = "Back"; tag = "SettingsBack"
-            setTextColor(palette.text); background=rounded(palette.surface,0f); setOnClickListener { navigate(if (page == "Raabta settings") "" else "Raabta settings") }
+            setTextColor(palette.text); background=rounded(palette.surface,0f); setOnClickListener { navigate(if (internal || page == "Raabta settings") "" else "Raabta settings") }
         }, LayoutParams(context.dp(52), context.dp(52)))
         header.addView(label(page, 21f), LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         addView(header)
@@ -62,9 +62,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
             "Corrections and suggestions" -> corrections()
             "Emojis, stickers and GIFs" -> emoji()
             "Clipboard" -> clipboard()
-            "Theme" -> choices("Theme", KeyboardTheme.entries.map { it.name.lowercase().replaceFirstChar(Char::uppercase) }, KeyboardPreferences.load(context).theme.ordinal) {
-                KeyboardPreferences.save(context, KeyboardPreferences.load(context).copy(theme = KeyboardTheme.entries[it])); changed()
-            }
+            "Theme" -> body.addView(ThemePicker(context,changed) { action("theme:import") })
             "Languages" -> {
                 section("Keyboard layouts")
                 choices("Layout", listOf("English (QWERTY)", "Urdu (اردو)", "Roman Urdu (QWERTY)"), context.getSharedPreferences("keyboard_options", 0).getInt("language", 0)) {
@@ -105,13 +103,13 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
                 row("Clear dictionary and recent emoji", "Also clears learned words and current clipboard previews.") { options.clearLocalData(); action("clear"); changed(); navigate(page) }
                 row("App permissions", "Manage microphone, optional contacts and screenshot access in Android.") { action("permissions") }
             }
-            "About" -> note("Raabta Keyboard 0.6.0\nLocal typing and suggestions; optional system voice recognition.\nMore → Settings opens full-screen settings; Back returns to your app.\nAI tools use your chosen provider. Android permission screens are system dialogs.")
+            "About" -> note("Raabta Keyboard 0.7.0\nLocal typing and suggestions; optional system voice recognition.\nMore → Settings opens full-screen settings; Back returns to your app.\nAI tools use your chosen provider. Android permission screens are system dialogs.")
             "Help and feedback" -> note("Space: tap to insert a space; slide to move the cursor.\nHold a letter for its symbol.\nTap a suggestion to insert it; emoji do not replace your word.\nUrdu voice: use Urdu-only mode for mostly Urdu phrases.\nImage paste requires an app that accepts image content.\nReport issues with the app, Android version and steps to reproduce.")
         }
     }
     private fun home() {
         listOf("Connections" to "Active provider, model, real connection test and encrypted key", "AI" to "Writing tools and provider controls", "Voice" to "Recording and recognition", "Appearance" to "Theme, keys and size", "Advanced" to "Gestures and dictionary", "Languages" to "English, Urdu and Roman Urdu", "Preferences" to "Keys, size, layout, shortcuts and feedback",
-            "Theme" to "Midnight purple, system, light or dark", "Corrections and suggestions" to "Local words, emoji and correction controls",
+            "Theme" to "Standard themes, Neon Orbit, Paper White, Spectrum and imports", "Corrections and suggestions" to "Local words, emoji and correction controls",
             "Glide typing" to "Slide typing and Space cursor control", "Voice typing" to "Languages, Stop and long-pause behaviour",
             "Clipboard" to "Copied text, images and extracted items", "Dictionary" to "Your explicitly saved words",
             "Emojis, stickers and GIFs" to "Emoji rows, size and suggestions", "Privacy" to "Local data and permissions",
@@ -240,7 +238,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         line.addView(texts,LayoutParams(0,LayoutParams.WRAP_CONTENT,1f))
         line.addView(Switch(context).apply {
             thumbTintList=android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked),intArrayOf()),intArrayOf(palette.accent,palette.muted))
-            trackTintList=android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked),intArrayOf()),intArrayOf((palette.accent and 0x00FFFFFF) or 0x66000000,0xFF55515B.toInt()))
+            trackTintList=android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked),intArrayOf()),intArrayOf((palette.accent and 0x00FFFFFF) or 0x66000000,palette.border))
             tag = "option:$key"; contentDescription = title; isChecked=value; setOnCheckedChangeListener { _,checked-> save(checked) }
         })
         body.addView(line)

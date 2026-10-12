@@ -17,7 +17,7 @@
     <string name="privacy_title">Local by default</string>
     <string name="privacy_description">Typing stays local. Optional learned words and recent emoji are stored on this phone; private fields are excluded. Translation runs on-device after an explicit model download; Google may collect SDK usage diagnostics. Optional AI sends only your tool draft to the provider you configure when you press Generate. Voice uses your phone’s speech service and may process audio online unless you choose On-device only. Recording starts only when you tap the microphone. Test fields are cleared when this screen closes.</string>
     <string name="typing_help">Tap Shift for one capital. Tap it again or hold it for Caps Lock. Hold Backspace to repeat. Use ?123 and =\&lt; for numbers and symbols. Android’s Back gesture hides the keyboard.</string>
-    <string name="version_label">0.4.0 · Learned words, Roman Urdu and writing tools · Android 8+</string>
+    <string name="version_label">0.7.0 · Integrated tools and themes · Android 8+</string>
     <string name="hold_delay_title">Hold Backspace to repeat after</string>
     <string name="hold_fast">200 ms · Quick</string>
     <string name="hold_normal">400 ms · Normal</string>
@@ -119,4 +119,9 @@
     <string name="voice_elapsed">%1$02d:%2$02d</string>
     <string name="connection_summary">Active AI provider: %1$s\nSaved provider: %2$s\nCurrent model: %3$s\nConnection type: HTTPS · Key / backend\nStatus: %4$s\nKey: %5$s</string>
     <string name="connection_no_browser">Open console.groq.com/keys in your browser to create your own developer key.</string>
+    <string name="tools_menu_title">Tools</string>
+    <string name="theme_import_title">Import theme</string>
+    <string name="theme_import_help">Import a local Raabta colour theme (.json). Your existing themes remain available.</string>
+    <string name="menu_choice_selected">%1$s ✓</string>
+    <string name="voice_starting">Starting microphone…</string>
 </resources>

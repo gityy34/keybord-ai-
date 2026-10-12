@@ -3,7 +3,10 @@ package dev.raabta.keyboard.ui
 import androidx.core.content.edit
 import android.content.Context
 
-enum class KeyboardTheme { SYSTEM, LIGHT, DARK, MIDNIGHT }
+enum class KeyboardTheme(val label: String) {
+    SYSTEM("Follow phone"), LIGHT("Light"), DARK("Dark"), MIDNIGHT("Midnight"),
+    NEON("Neon Orbit"), PAPER("Paper White"), SPECTRUM("Spectrum"), CUSTOM("Imported theme")
+}
 enum class KeyboardHeight { COMPACT, NORMAL, TALL }
 
 /** Only presentation preferences are stored; never editor text or audio. */

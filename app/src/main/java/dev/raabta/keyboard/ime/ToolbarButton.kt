@@ -23,6 +23,8 @@ class ToolbarButton(context: Context) : KeyButton(context) {
             "☺" -> R.drawable.ic_emoji
             "‹" -> R.drawable.ic_back
             "×" -> R.drawable.ic_close
+            "⌫" -> R.drawable.ic_trash
+            "⌨" -> R.drawable.ic_keyboard
             "✎" -> R.drawable.ic_grammar
             "↻" -> R.drawable.ic_rewrite
             "☷" -> R.drawable.ic_tone

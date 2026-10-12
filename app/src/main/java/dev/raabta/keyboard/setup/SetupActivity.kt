@@ -211,7 +211,7 @@ class SetupActivity : Activity() {
         isAllCaps = false
         textSize = 17f
         gravity = Gravity.CENTER
-        setTextColor(palette.surface)
+        setTextColor(palette.onAccent)
         background = rounded(palette.accent, dp(14).toFloat())
         layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56))
         setOnClickListener { callback() }

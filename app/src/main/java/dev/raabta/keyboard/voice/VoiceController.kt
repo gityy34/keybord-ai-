@@ -15,6 +15,7 @@ class VoiceController(
     private val pauseMillis: () -> Long = { 8_000 },
     private val finalWaitMillis: () -> Long = { 800 },
     private val onLevel: (Float) -> Unit = {},
+    private val onReady: () -> Unit = {},
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private var generation = 0
@@ -61,6 +62,11 @@ class VoiceController(
         fun current() = session == generation && utterance == segment && active
         try {
             engine = factory.create(object : SpeechEngine.Listener {
+                override fun ready() {
+                    if(!current() || state!=VoiceState.LISTENING) return
+                    if(utterance==1) { quietSince=SystemClock.uptimeMillis(); scheduleQuiet() }
+                    onReady()
+                }
                 override fun level(rms:Float) { if(current() && state==VoiceState.LISTENING) onLevel(rms) }
                 override fun speechStarted() {
                     if (!current() || state != VoiceState.LISTENING) return
@@ -98,7 +104,7 @@ class VoiceController(
                         busyRetries = 0
                         if (quietSince < 0L) quietSince = SystemClock.uptimeMillis()
                         scheduleQuiet()
-                        restartAfter(300)
+                        restartAfter(150)
                     }
                 }
                 override fun error(error: VoiceError) {
@@ -184,6 +190,7 @@ class VoiceController(
     }
 
     private fun releaseEngine(): Boolean {
+        onLevel(-2f)
         ++segment
         handler.removeCallbacks(segmentTimeout)
         val previous = engine

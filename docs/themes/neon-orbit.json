@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "name": "Neon Orbit Custom",
+  "dark": true,
+  "colors": {
+    "background": "#080E1D",
+    "surface": "#131E34",
+    "key": "#16263C",
+    "text": "#EDF8FF",
+    "muted": "#AABED4",
+    "accent": "#63E5FF",
+    "secondary": "#BC98FF",
+    "border": "#28506C"
+  }
+}

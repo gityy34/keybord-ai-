@@ -147,8 +147,8 @@ class WritingAndLearningTest {
     @Test fun romanToolDraftDoesNotEditAppUntilInsert() {
         toolbox("Roman Urdu → Urdu"); type("aap kaise hain")
         assertEquals("",field.text.toString()); click("tool:writing:run")
-        assertEquals("آپ کیسے ہیں",view.findViewWithTag<TextView>("ToolPreview").text.toString())
-        click("tool:writing:insert"); assertEquals("آپ کیسے ہیں",field.text.toString())
+        assertEquals("آپ کیسے ہیں",view.findViewWithTag<TextView>("ResultText:0").text.toString())
+        click("tool:writing:replace:0"); assertEquals("آپ کیسے ہیں",field.text.toString())
     }
     private class Translation:TranslationEngine {
         var closed=false; var downloadCalls=0; var callback:((String?)->Unit)?=null
@@ -161,7 +161,7 @@ class WritingAndLearningTest {
         click("Translation"); assertEquals(0,fake.downloadCalls)
         click("tool:writing:download"); assertEquals(1,fake.downloadCalls)
         type("salam"); click("tool:writing:run"); fake.callback!!("Hello")
-        assertEquals("",field.text.toString()); click("tool:writing:insert"); assertEquals("Hello",field.text.toString())
+        assertEquals("",field.text.toString()); click("tool:writing:replace:0"); assertEquals("Hello",field.text.toString())
     }
     @Test fun lateTranslationCannotInsertAfterEditorChanges() {
         val fake=Translation(); service.translationFactory={ _,_ -> fake }
@@ -185,6 +185,7 @@ class WritingAndLearningTest {
         }
         click("Translation"); click("tool:writing:voice")
         assertEquals(VoiceSettings.URDU,requested)
+        assertTrue(view.findViewWithTag<View>("voice-language:ur-PK").isSelected)
         listener.result("آپ کیسے ہیں")
         assertEquals("",field.text.toString())
         click("Voice")
@@ -201,7 +202,7 @@ class WritingAndLearningTest {
     }
     @Test fun writingResultRejectsChangedCaretAndLargeSelections() {
         connection.commitText("existing",1); toolbox("Roman Urdu → Urdu"); type("hai"); click("tool:writing:run")
-        field.setSelection(0); click("tool:writing:insert"); assertEquals("existing",field.text.toString())
+        field.setSelection(0); click("tool:writing:replace:0"); assertEquals("existing",field.text.toString())
         field.setText("a".repeat(2001)); field.selectAll(); click("tool:writing:selection")
         assertTrue(view.findViewWithTag<TextView>("ToolStatus").text.contains("2,000"))
     }

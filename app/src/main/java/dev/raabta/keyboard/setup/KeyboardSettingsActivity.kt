@@ -30,7 +30,7 @@ class KeyboardSettingsActivity:Activity() {
         if(value=="Connections") { startActivity(Intent(this,AiConnectionActivity::class.java)); return }
         val scroll=if(value==page) findViewById<android.view.View>(android.R.id.content)?.findViewWithTag<android.widget.ScrollView>("SettingsScroll")?.scrollY ?: 0 else 0
         page=value
-        val palette=Palette.from(this)
+        val palette=Palette.from(this); palette.applySystemBars(window)
         @Suppress("DEPRECATION")
         window.statusBarColor=palette.background
         @Suppress("DEPRECATION")
@@ -56,6 +56,7 @@ class KeyboardSettingsActivity:Activity() {
             value.startsWith("permission:") -> startActivity(Intent(this,OptionalPermissionActivity::class.java).putExtra("setting",value.substringAfter(':')))
             value=="permissions" -> startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,"package:$packageName".toUri()))
             value=="clear" || value=="learned_clear" -> LearnedWords(this).clear()
+            value=="theme:import" -> startActivity(Intent(this,ThemeImportActivity::class.java))
             value=="ai:connection" -> startActivity(Intent(this,AiConnectionActivity::class.java))
             value=="ai:clear" -> { AiConnection(this).clear(); showPage(page) }
             value=="translation_delete" -> LocalTranslation.deleteModels(this) { ok -> Toast.makeText(this,if(ok) "Translation model removed." else "Could not remove model.",Toast.LENGTH_LONG).show() }
@@ -66,7 +67,7 @@ class KeyboardSettingsActivity:Activity() {
                 }.setNegativeButton("Cancel",null).show()
             }
             value=="share" -> startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                type="text/plain"; putExtra(Intent.EXTRA_TEXT,"Raabta Keyboard: https://github.com/gityy34/keybord-ai-/tree/apk-complete-0.6.0")
+                type="text/plain"; putExtra(Intent.EXTRA_TEXT,"Raabta Keyboard: https://github.com/gityy34/keybord-ai-/tree/apk-polish-0.7.0")
             },"Share Raabta"))
             else -> AlertDialog.Builder(this).setMessage("Use this tool from the Raabta keyboard toolbar while editing text.").setPositiveButton("OK",null).show()
         }
