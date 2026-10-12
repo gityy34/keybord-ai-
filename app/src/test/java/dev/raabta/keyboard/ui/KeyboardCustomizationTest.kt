@@ -108,7 +108,7 @@ class KeyboardCustomizationTest {
     private fun checkButtonsFit(root: ViewGroup) {
         fun visit(view: View) {
             if (view.visibility != View.VISIBLE) return
-            if (view is Button) {
+            if (view is Button && view !is dev.raabta.keyboard.ime.ToolbarButton) {
                 val bounds = Rect(0, 0, view.width, view.height)
                 root.offsetDescendantRectToMyCoords(view, bounds)
                 assertTrue("Key outside keyboard: ${view.tag}, $bounds in ${root.width}×${root.height}", bounds.left >= 0 && bounds.top >= 0 && bounds.right <= root.width && bounds.bottom <= root.height)

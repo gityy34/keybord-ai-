@@ -76,7 +76,6 @@
     <string name="voice_error_timeout">Voice typing timed out. Normal typing is still available.</string>
     <string name="voice_error_internal">The speech service could not finish. Tap the microphone to retry.</string>
     <string name="voice_error_insert">The text field changed or refused the result. Tap the field and dictate again.</string>
-    <string name="keyboard_settings">Open keyboard setup</string>
     <string name="keyboard_switch">Switch keyboard</string>
     <string name="keyboard_title">RAABTA · EN</string>
     <string name="key_space">Space</string>
@@ -108,4 +107,16 @@
     <string name="emoji_no_match">No matching emoji.</string>
     <string name="custom_instruction_notice">This instruction stays in memory. Your existing draft is kept.</string>
     <string name="writing_use_tool">Use tool</string>
+    <string name="clipboard_enabled">Clipboard</string>
+    <string name="connection_saved">Saved. Test Connection to verify these settings.</string>
+    <string name="connection_save_first">Save a valid connection first.</string>
+    <string name="connection_testing">Connecting…</string>
+    <string name="connection_success">Connected successfully.</string>
+    <string name="connection_changed">Connection changed; test the new settings.</string>
+    <string name="voice_retry">Retry</string>
+    <string name="voice_completed">Completed</string>
+    <string name="voice_error_label">Error</string>
+    <string name="voice_elapsed">%1$02d:%2$02d</string>
+    <string name="connection_summary">Active AI provider: %1$s\nSaved provider: %2$s\nCurrent model: %3$s\nConnection type: HTTPS · Key / backend\nStatus: %4$s\nKey: %5$s</string>
+    <string name="connection_no_browser">Open console.groq.com/keys in your browser to create your own developer key.</string>
 </resources>

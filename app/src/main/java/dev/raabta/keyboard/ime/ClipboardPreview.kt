@@ -11,6 +11,7 @@ class ClipboardPreview(private val context:Context) {
     private var cached=emptyList<Candidate>()
     private var screenshot:Candidate?=null
     fun refresh() {
+        if(!dev.raabta.keyboard.ui.KeyboardOptions(context).enabled("clipboard_enabled")) { clear(); return }
         cached=emptyList(); until=SystemClock.uptimeMillis()+120_000
         try {
             val clip=context.getSystemService(ClipboardManager::class.java)?.primaryClip ?: return
@@ -22,9 +23,9 @@ class ClipboardPreview(private val context:Context) {
                 cached=listOf(Candidate("Paste copied image","",imageUri=item.uri.toString()))
         } catch (_:RuntimeException) { cached=emptyList() }
     }
-    fun screenshot(uri:String) { screenshot=Candidate("Paste recent screenshot","",imageUri=uri); until=SystemClock.uptimeMillis()+120_000 }
+    fun screenshot(uri:String) { if(!dev.raabta.keyboard.ui.KeyboardOptions(context).enabled("clipboard_enabled")) return; screenshot=Candidate("Paste recent screenshot","",imageUri=uri); until=SystemClock.uptimeMillis()+120_000 }
     fun candidates(items:Boolean):List<Candidate> {
-        if(SystemClock.uptimeMillis()>until) { clear(); return emptyList() }
+        if(!dev.raabta.keyboard.ui.KeyboardOptions(context).enabled("clipboard_enabled") || SystemClock.uptimeMillis()>until) { clear(); return emptyList() }
         val result=cached.toMutableList(); screenshot?.let(result::add)
         if(items) cached.firstOrNull { it.imageUri==null }?.text?.let { text ->
             Regex("https?://[^\\s]+|[\\w.+-]+@[\\w.-]+\\.[A-Za-z]{2,}|\\+?[0-9][0-9 ()-]{6,}[0-9]").findAll(text).take(3)

@@ -29,11 +29,25 @@ class AiRequest internal constructor(private val connect: (URL) -> HttpsURLConne
             http.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             if (token.isNotEmpty()) http.setRequestProperty("Authorization", "Bearer $token")
             http.outputStream.use { it.write(request.toString().toByteArray(Charsets.UTF_8)) }
-            check(http.responseCode in 200..299) { "AI service rejected the request (${http.responseCode})." }
+            val code=http.responseCode
+            if(code !in 200..299) throw AiFailure(when(code) {
+                401,403 -> AiProblem.AUTH
+                404 -> AiProblem.MODEL
+                429 -> AiProblem.RATE
+                408,504 -> AiProblem.TIMEOUT
+                in 500..599 -> AiProblem.UNAVAILABLE
+                else -> {
+                    val details=try { http.errorStream?.use { it.readBytesBounded() }?.toString(Charsets.UTF_8).orEmpty() } catch (_:Exception) { "" }
+                    if(details.contains("model_not_found") || details.contains("model_decommissioned")) AiProblem.MODEL else if(details.contains("invalid_api_key")) AiProblem.AUTH else AiProblem.REQUEST
+                }
+            })
             val bytes = http.inputStream.use { it.readBytesBounded() }
             check(!cancelled)
-            return parse(bytes.toString(Charsets.UTF_8))
-        } finally { http.disconnect(); connection = null }
+            return try { parse(bytes.toString(Charsets.UTF_8)) } catch (_:Exception) { throw AiFailure(AiProblem.RESPONSE) }
+        } catch(e:AiFailure) { throw e }
+        catch (_:java.net.SocketTimeoutException) { throw AiFailure(AiProblem.TIMEOUT) }
+        catch (_:java.io.IOException) { throw AiFailure(if(cancelled) AiProblem.CANCELLED else AiProblem.NETWORK) }
+        finally { http.disconnect(); connection = null }
     }
     private fun java.io.InputStream.readBytesBounded(): ByteArray {
         val output = java.io.ByteArrayOutputStream()

@@ -13,11 +13,19 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /** No bundled key/provider. Optional user token is encrypted with a device Keystore key. */
-class AiConnection(private val context: Context) {
+class AiConnection(private val context: Context, private val keySource:(()->SecretKey)?=null) {
     private val store = context.getSharedPreferences("ai_connection", Context.MODE_PRIVATE)
     fun endpoint() = store.getString("endpoint", "").orEmpty()
     fun model() = store.getString("model", "").orEmpty()
-    fun ready() = validEndpoint(endpoint()) && validModel(model())
+    fun configured() = validEndpoint(endpoint()) && validModel(model())
+    fun active() = store.getBoolean("active",true)
+    fun ready() = configured() && active()
+    fun provider() = if(endpoint()==ProviderKind.GROQ.endpoint) ProviderKind.GROQ else ProviderKind.CUSTOM
+    fun setActive(value:Boolean) { store.edit { putBoolean("active",value) } }
+    fun maskedKey() = store.getString("key_suffix",null)?.let { "••••••••$it" } ?: if(store.getString("token","").isNullOrEmpty()) "No key saved" else "Saved encrypted key"
+    private fun fingerprint() = java.security.MessageDigest.getInstance("SHA-256").digest((endpoint()+"\u0000"+model()+"\u0000"+store.getString("token","")).toByteArray()).joinToString("") { "%02x".format(it) }
+    fun status():String = if(!configured()) "Not configured" else if(!active()) "Deactivated" else if(store.getString("tested",null)==fingerprint()) "Connected · last test succeeded" else "Configured · not verified"
+    fun recordTest(success:Boolean) { store.edit { if(success) putString("tested",fingerprint()) else remove("tested") } }
     fun token(): String {
         val data = store.getString("token", "") ?: return ""
         if (data.isEmpty()) return ""
@@ -38,8 +46,9 @@ class AiConnection(private val context: Context) {
         }
         store.edit {
             putString("endpoint", endpoint).putString("model", model)
-            if (encrypted != null) putString("token", encrypted)
-            else if (endpoint != this@AiConnection.endpoint()) remove("token")
+            if (encrypted != null) { putString("token", encrypted); if(token.isNullOrEmpty()) remove("key_suffix") else putString("key_suffix",token.takeLast(4)) }
+            else if (endpoint != this@AiConnection.endpoint()) { remove("token"); remove("key_suffix") }
+            if(endpoint!=this@AiConnection.endpoint() || model!=this@AiConnection.model() || encrypted!=null) remove("tested")
         }
     }
     fun clear() {
@@ -47,6 +56,7 @@ class AiConnection(private val context: Context) {
         try { KeyStore.getInstance("AndroidKeyStore").apply { load(null); deleteEntry(ALIAS) } } catch (_: Exception) { }
     }
     private fun key(): SecretKey {
+        keySource?.let { return it() }
         val keys = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (keys.getKey(ALIAS, null) as? SecretKey)?.let { return it }
         return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply {

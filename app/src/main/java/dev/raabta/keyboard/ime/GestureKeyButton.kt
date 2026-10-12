@@ -18,6 +18,7 @@ class GestureKeyButton(context:Context) : KeyButton(context) {
     var holdDuration=400L
     var flickDistance=24f * resources.displayMetrics.density
     var enableFlick=false
+    var tapSlop=ViewConfiguration.get(context).scaledTouchSlop.toFloat()
     private val handler=Handler(Looper.getMainLooper())
     private var x=0f; private var y=0f; private var lastX=0f
     private var consumed=false; private var moved=false
@@ -30,7 +31,7 @@ class GestureKeyButton(context:Context) : KeyButton(context) {
                 if(onSymbol!=null) handler.postDelayed(held,holdDuration)
             }
             MotionEvent.ACTION_MOVE -> {
-                if(kotlin.math.abs(event.x-x)>ViewConfiguration.get(context).scaledTouchSlop || kotlin.math.abs(event.y-y)>ViewConfiguration.get(context).scaledTouchSlop) {
+                if(kotlin.math.abs(event.x-x)>tapSlop || kotlin.math.abs(event.y-y)>tapSlop) {
                     moved=true; handler.removeCallbacks(held); onPreview?.invoke(false)
                 }
                 if(consumed && onMoveCursor==null) return true
@@ -47,7 +48,7 @@ class GestureKeyButton(context:Context) : KeyButton(context) {
             MotionEvent.ACTION_UP -> {
                 handler.removeCallbacks(held); isPressed=false; onPreview?.invoke(false)
                 val glide=if(!consumed && moved) onGlideEnd?.invoke()==true else false
-                if(!consumed && !glide && !moved) performClick()
+                if(!consumed && !glide && (!moved || (onMoveCursor!=null && kotlin.math.abs(event.y-y)<tapSlop*2))) performClick()
                 else if(!consumed && !glide && onGlideEnd==null && onMoveCursor==null) performClick()
             }
             MotionEvent.ACTION_CANCEL -> cancelGesture()

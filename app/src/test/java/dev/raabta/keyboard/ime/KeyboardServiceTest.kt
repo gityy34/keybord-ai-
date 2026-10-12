@@ -227,7 +227,7 @@ class KeyboardServiceTest {
 
     @Test fun cancelAndHideStopRecordingWithoutInsertion() {
         val first = startVoice()
-        press("CancelVoice")
+        press("VoiceDismiss")
         first.listener.result("cancelled")
         val second = startVoice()
         service.onFinishInputView(true)

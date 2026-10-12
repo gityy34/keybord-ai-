@@ -32,8 +32,20 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         addView(ScrollView(context).apply { tag="SettingsScroll"; addView(body); isFillViewport=true }, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         when (page) {
             "Raabta settings" -> home()
-            "Preferences" -> preferences()
+            "Preferences", "Keyboard" -> preferences()
+            "Connections" -> {
+                val saved=AiConnection(context)
+                note("Provider: ${saved.provider().label}\nModel: ${saved.model().ifEmpty { "None" }}\nStatus: ${saved.status()}\nConnection type: HTTPS")
+                row("Manage Connections", "Test, activate, deactivate or change your provider and encrypted API key.") { action("ai:connection") }
+            }
+            "Advanced" -> { row("Glide typing", "Gesture settings") { navigate("Glide typing") }; row("Dictionary", "Local learned and saved words") { navigate("Dictionary") } }
+            "Appearance" -> { row("Theme", "Keyboard colours") { navigate("Theme") }; row("Resize", "Height and font controls") { navigate("Preferences") } }
+            "Voice" -> voice()
             "Tools" -> {
+                row("Settings", "Full keyboard settings") { action("settings") }
+                row("Connections", "Provider status, test and encrypted keys") { action("connections") }
+                row("AI Chat", "Ask your configured AI provider") { action("ai") }
+                row("Language", "Switch keyboard layout") { action("language") }
                 row("Theme", "Choose keyboard colours.") { navigate("Theme") }
                 row("Resize", "Choose keyboard height.") { navigate("Preferences") }
                 row("Emoji", "Open the emoji picker.") { action("emoji") }
@@ -61,7 +73,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
                 row("Switch language", "Use the globe key to cycle these layouts.") { action("language") }
             }
             "Voice typing" -> voice()
-            "Writing tools" -> {
+            "Writing tools", "AI" -> {
                 section("Translation")
                 row("Open translation", "Type or speak Urdu and insert English; reverse direction is available.") { action("translate") }
                 note("Translation runs on-device after you explicitly download the Urdu model. Google ML Kit may send SDK usage diagnostics; your translation text is processed locally.")
@@ -93,12 +105,12 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
                 row("Clear dictionary and recent emoji", "Also clears learned words and current clipboard previews.") { options.clearLocalData(); action("clear"); changed(); navigate(page) }
                 row("App permissions", "Manage microphone, optional contacts and screenshot access in Android.") { action("permissions") }
             }
-            "About" -> note("Raabta Keyboard 0.5.0\nLocal typing and suggestions; optional system voice recognition.\nThe gear opens full-screen settings; Back returns to your app.\nAI tools use your chosen provider. Android permission screens are system dialogs.")
+            "About" -> note("Raabta Keyboard 0.6.0\nLocal typing and suggestions; optional system voice recognition.\nMore → Settings opens full-screen settings; Back returns to your app.\nAI tools use your chosen provider. Android permission screens are system dialogs.")
             "Help and feedback" -> note("Space: tap to insert a space; slide to move the cursor.\nHold a letter for its symbol.\nTap a suggestion to insert it; emoji do not replace your word.\nUrdu voice: use Urdu-only mode for mostly Urdu phrases.\nImage paste requires an app that accepts image content.\nReport issues with the app, Android version and steps to reproduce.")
         }
     }
     private fun home() {
-        listOf("Languages" to "English, Urdu and Roman Urdu", "Preferences" to "Keys, size, layout, shortcuts and feedback",
+        listOf("Connections" to "Active provider, model, real connection test and encrypted key", "AI" to "Writing tools and provider controls", "Voice" to "Recording and recognition", "Appearance" to "Theme, keys and size", "Advanced" to "Gestures and dictionary", "Languages" to "English, Urdu and Roman Urdu", "Preferences" to "Keys, size, layout, shortcuts and feedback",
             "Theme" to "Midnight purple, system, light or dark", "Corrections and suggestions" to "Local words, emoji and correction controls",
             "Glide typing" to "Slide typing and Space cursor control", "Voice typing" to "Languages, Stop and long-pause behaviour",
             "Clipboard" to "Copied text, images and extracted items", "Dictionary" to "Your explicitly saved words",
@@ -107,6 +119,9 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         row("Share Raabta", "Share the APK download page.") { action("share") }
     }
     private fun preferences() {
+        section("Typing response")
+        slider("typing_sensitivity", "Keyboard sensitivity", "Accept fast taps with small finger movement. All normal taps commit immediately; this never queues letters.")
+        slider("suggestion_delay", "Suggestion response delay (ms)", "0 is fastest; higher values refresh suggestions less often. Typing stays immediate.")
         section("Keys")
         basicToggle("number_row", "Number row", "Always show numbers above the letter keys.", KeyboardPreferences.load(context).numberRow) {
             KeyboardPreferences.save(context, KeyboardPreferences.load(context).copy(numberRow = it)); changed()
@@ -192,6 +207,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         note("Online sticker/GIF search is not connected. Offline images and GIFs require a receiving app that supports rich content.")
     }
     private fun clipboard() {
+        toggle("clipboard_enabled", "Clipboard", "Allow local clipboard previews and paste tools. Off clears previews.")
         section("Suggestions")
         toggle("clipboard_suggestions", "Show recently copied text and images", "Preview the current clipboard in the suggestions bar. Nothing is saved to disk.")
         toggle("clipboard_items", "Show addresses, phone numbers and other items", "Extract phone numbers, email addresses and links from current copied text.")

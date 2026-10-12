@@ -66,12 +66,12 @@ class AiPanelWorkflowTest {
         click("AI"); click("tool:writing:selection"); click("tool:writing:run"); complete()
         for(index in 0..2) assertNotNull(view.findViewWithTag<View>("ResultCard:$index"))
         assertEquals("old message",field.text.toString()); assertEquals(1,transport.opened)
-        click("tool:writing:insert:2"); assertEquals("Good morning",field.text.toString())
+        click("tool:writing:replace:2"); assertEquals("Good morning",field.text.toString())
         assertNull(view.findViewWithTag<View>("WritingTool"))
     }
     @Test fun toolAndLanguageSelectionDoNotSendUntilGenerateAndUseTheirOwnInstructions() {
         click("AI"); type("hello")
-        view.findViewWithTag<View>("tool:writing:style:correct").performClick()
+        ReflectionHelpers.callInstanceMethod<Unit>(service,"writingAction",ReflectionHelpers.ClassParameter.from(String::class.java,"style:correct"))
         assertEquals(0,transport.opened)
         ReflectionHelpers.callInstanceMethod<Unit>(service,"writingAction",ReflectionHelpers.ClassParameter.from(String::class.java,"target:ur"))
         click("tool:writing:run"); complete()
@@ -101,7 +101,7 @@ class AiPanelWorkflowTest {
     @Test fun resultCardsCannotReplaceAfterCaretOrHostContentChanges() {
         field.setText("old message"); field.selectAll()
         click("AI"); click("tool:writing:selection"); click("tool:writing:run"); complete()
-        field.setSelection(0); click("tool:writing:insert:0")
+        field.setSelection(0); click("tool:writing:replace:0")
         assertEquals("old message",field.text.toString())
         assertTrue(view.findViewWithTag<TextView>("ToolStatus").text.contains("cursor or text changed"))
     }

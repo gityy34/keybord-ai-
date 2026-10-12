@@ -53,15 +53,17 @@ class RaabtaInputMethodService : InputMethodService() {
     private var writingVariants=emptyList<String>()
     private var writingCustom=""
     private var customEditing=false
+    private var writingAutoStyle=false
     private var writingSource="ur"
     private var writingTarget="en"
     private var writingStyle="rewrite"
     private var writingBusy=false
-    private var writingRevision=0
+    @Volatile private var writingRevision=0
     private var writingAnchor=""
     private var voiceToTranslation=false
     private var translator:TranslationEngine?=null
-    private var aiRequest:AiRequest?=null
+    @Volatile private var aiProvider:AIProvider?=null
+    private var writingTargetText:EditorTarget?=null
     internal var aiRequestFactory: ()->AiRequest = { AiRequest() }
     internal var translationFactory: (String,String)->TranslationEngine = { source,target -> LocalTranslation(this,source,target) }
     private val clipboard by lazy { ClipboardPreview(this) }
@@ -97,11 +99,13 @@ class RaabtaInputMethodService : InputMethodService() {
         },
         onSwitch = { getSystemService(InputMethodManager::class.java).showInputMethodPicker() },
         onVoice = ::toggleVoice,
-        onCancelVoice = { voice.cancel() },
+        onCancelVoice = { voice.cancel(); keyboard?.dismissVoiceStatus(); keyboard?.hideVoiceLanguages() },
         onSettingsChanged = { page ->
+            val position=keyboard?.findViewWithTag<android.widget.ScrollView>("SettingsScroll")?.scrollY ?: 0
             voice.cancel(); closeWriting(); learningBuffer=""; deleteSelection.cancel(); deleting=false; keyboard?.cancelRepeats()
             setInputView(onCreateInputView())
             keyboard?.showSettings(page)
+            keyboard?.findViewWithTag<android.widget.ScrollView>("SettingsScroll")?.let { scroll -> scroll.addOnLayoutChangeListener(object:View.OnLayoutChangeListener { override fun onLayoutChange(v:View,l:Int,t:Int,r:Int,b:Int,ol:Int,ot:Int,or:Int,ob:Int) { if(b>t) { scroll.removeOnLayoutChangeListener(this); scroll.scrollTo(0,position) } } }) }
             refreshSuggestions(); loadContacts()
         },
         onTool = ::tool,
@@ -136,6 +140,7 @@ class RaabtaInputMethodService : InputMethodService() {
             keyboard?.showVoiceMessage(if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
                 R.string.voice_permission_granted else R.string.voice_permission_denied)
         }
+        if(keyboard?.findViewWithTag<View>("ConnectionSummary")!=null) keyboard?.showConnections(AiConnection(this))
         dev.raabta.keyboard.ui.PendingKeyboardTool.consume().takeIf { it.isNotEmpty() }?.let(::tool)
     }
 
@@ -245,7 +250,7 @@ class RaabtaInputMethodService : InputMethodService() {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
         if (oldSelStart != newSelStart || oldSelEnd != newSelEnd) {
             voice.cancel(); refreshSuggestions()
-            if(writingMode.isNotEmpty() && editorAnchor()!=writingAnchor) closeWriting()
+            if(writingMode.isNotEmpty()) closeWriting()
         }
     }
 
@@ -267,7 +272,7 @@ class RaabtaInputMethodService : InputMethodService() {
         val generation = editorGeneration
         val revision = writingRevision
         val toolMode = writingMode
-        val language = if(toolMode=="translate") { if(writingSource=="ur") VoiceSettings.URDU else VoiceSettings.ENGLISH } else VoiceSettings.language(this)
+        val language = if(toolMode=="translate") { when(writingSource) { "ur" -> VoiceSettings.URDU; "en" -> VoiceSettings.ENGLISH; "auto" -> VoiceSettings.MIXED; else -> writingSource } } else VoiceSettings.language(this)
         voice.start(language) { result ->
             if (generation != editorGeneration || currentInputConnection !== connection || !VoicePolicy.allows(editor)) {
                 message(R.string.voice_error_insert)
@@ -278,7 +283,7 @@ class RaabtaInputMethodService : InputMethodService() {
                 writingDraft=(writingDraft+if(writingDraft.isEmpty()) "" else " ")+result
                 writingResult=""; writingVariants=emptyList(); keyboard?.showVoicePreview("")
                 if(voiceToTranslation && toolMode=="translate") runWriting(autoInsert=true) else updateWriting("Voice draft ready.")
-            } else if (!EditorCommands.type(connection, result)) message(R.string.voice_error_insert)
+            } else if (!EditorCommands.type(connection, result)) message(R.string.voice_error_insert) else keyboard?.showVoiceCompleted()
             refreshSuggestions()
         }
     }
@@ -304,15 +309,19 @@ class RaabtaInputMethodService : InputMethodService() {
         writingMode=mode; writingAnchor=editorAnchor(); writingSource="ur"; writingTarget="en"
         writingCustom=""; customEditing=false; writingVariants=emptyList()
         keyboard?.showWritingTool(mode,writingSource,writingTarget,writingStyle)
+        if(currentInputConnection!=null) {
+            writingTargetText=EditorTarget.capture(currentInputConnection!!)
+            writingDraft=writingTargetText?.original.orEmpty()
+        }
         updateWriting(if(mode=="ai") "Generate sends only this draft to your configured provider." else if(mode=="translate") "Download the model once, then translate on this phone." else "Common Roman Urdu words convert offline; unknown words stay unchanged.")
     }
     private fun stopWritingRequest() {
-        ++writingRevision; aiRequest?.cancel(); aiRequest=null
+        ++writingRevision; aiProvider?.cancel(); aiProvider=null
         try { translator?.close() } catch (_:RuntimeException) { }
         translator=null; writingBusy=false
     }
     private fun closeWriting() {
-        stopWritingRequest(); writingMode=""; writingDraft=""; writingResult=""; writingVariants=emptyList(); writingCustom=""; customEditing=false; writingAnchor=""; voiceToTranslation=false
+        stopWritingRequest(); writingMode=""; writingDraft=""; writingResult=""; writingVariants=emptyList(); writingCustom=""; customEditing=false; writingAnchor=""; writingTargetText=null; voiceToTranslation=false
         keyboard?.closeWritingTool()
     }
     private fun updateWriting(status:String="") { keyboard?.updateWritingTool(writingDraft,writingResult,status,writingBusy,writingVariants) }
@@ -353,18 +362,23 @@ class RaabtaInputMethodService : InputMethodService() {
                 if(AiTools.all.none { it.id==value }) return
                 writingStyle=value
             } else {
-                if(value !in listOf("ur","en")) return
+                if(value !in com.google.mlkit.nl.translate.TranslateLanguage.getAllLanguages() && !(action.startsWith("source:") && value=="auto")) return
                 if(action.startsWith("target:")) writingTarget=value
-                else { writingSource=value; writingTarget=if(value=="ur") "en" else "ur" }
+                else writingSource=value
             }
             keyboard?.showWritingTool(writingMode,writingSource,writingTarget,writingStyle); updateWriting()
+            if(writingAutoStyle && action.startsWith("style:") && value!="custom") runWriting()
+            if(value=="custom" && action.startsWith("style:")) { customEditing=true; keyboard?.showCustomInstruction(writingCustom) }
             return
         }
-        if(action.startsWith("insert:")) {
-            val index=action.substringAfter(':').toIntOrNull() ?: return
-            val value=writingVariants.getOrNull(index) ?: return
+        if(action.startsWith("insert:") || action.startsWith("replace:") || action.startsWith("copy:")) {
+            val value=writingVariants.getOrNull(action.substringAfter(':').toIntOrNull() ?: return) ?: return
             if(writingBusy) return
-            writingResult=value; insertWriting(); return
+            if(action.startsWith("copy:")) {
+                if(VoicePolicy.allows(editor)) getSystemService(ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText("AI result",value))
+                updateWriting("Copied result."); return
+            }
+            writingResult=value; insertWriting(replace=action.startsWith("replace:")); return
         }
         when(action) {
             "keyboard" -> keyboard?.toggleWritingKeyboard()
@@ -378,6 +392,7 @@ class RaabtaInputMethodService : InputMethodService() {
                 val selected=try { currentInputConnection?.getSelectedText(0)?.toString().orEmpty() } catch (_:RuntimeException) { "" }
                 if(selected.length>2000) { updateWriting("Select at most 2,000 characters so no selected text is lost."); return }
                 writingDraft=selected
+                writingTargetText=currentInputConnection?.let(EditorTarget::capture)
                 writingAnchor=editorAnchor()
                 updateWriting(if(writingDraft.isEmpty()) "Select text in your app first, or type a draft here." else "Selected text loaded. Insert will replace this selection.")
             }
@@ -389,6 +404,7 @@ class RaabtaInputMethodService : InputMethodService() {
                 keyboard?.showWritingTool(writingMode,writingSource,writingTarget,writingStyle); updateWriting()
             }
             "download" -> {
+                if(writingSource=="auto") { updateWriting("Choose a source language for offline model download. Detect Language uses your AI connection."); return }
                 if(writingBusy) return
                 stopWritingRequest(); val revision=writingRevision
                 try {
@@ -405,7 +421,10 @@ class RaabtaInputMethodService : InputMethodService() {
                 keyboard?.showWritingTool(writingMode,writingSource,writingTarget,writingStyle)
                 updateWriting("Custom tool ready. Press Generate to send your draft.")
             } else runWriting()
-            "insert" -> insertWriting()
+            "insert" -> insertWriting(replace=true)
+            "cancel" -> { stopWritingRequest(); updateWriting("Cancelled. Your text was kept.") }
+            "retry" -> runWriting()
+            "nearby" -> { writingTargetText=currentInputConnection?.let(EditorTarget::capture); writingDraft=writingTargetText?.original.orEmpty(); writingAnchor=editorAnchor(); updateWriting("Current sentence loaded.") }
         }
     }
     private fun runWriting(autoInsert:Boolean=false) {
@@ -419,33 +438,51 @@ class RaabtaInputMethodService : InputMethodService() {
             writingVariants=if(result==null) emptyList() else if(mode=="ai") AiTools.variants(result) else listOf(result.take(8000))
             writingResult=writingVariants.firstOrNull().orEmpty()
             updateWriting(if(result==null) failure else "Review the result, then Replace Text.")
-            if(result!=null && autoInsert) insertWriting()
+            if(result!=null && autoInsert) insertWriting(replace=false)
         }
         when(mode) {
             "roman" -> complete(RomanUrdu.convert(draft),"")
-            "translate" -> try {
+            "translate" -> if(writingSource=="auto") {
+                val target=writingTarget
+                try { mediaWorker.execute {
+                    if(revision!=writingRevision) return@execute
+                    var failure="Language detection needs an active AI connection. Retry or select Urdu/English manually."
+                    val result=try {
+                        val provider=AIService(AiConnection(this),aiRequestFactory).provider(); aiProvider=provider
+                        if(revision!=writingRevision) { provider.cancel(); return@execute }
+                        provider.translate(draft,"auto-detect",target)
+                    } catch(e:AiFailure) { failure=e.problem.userMessage; null } catch (_:Exception) { null }
+                    ui.post { complete(result,failure) }
+                } } catch (_:java.util.concurrent.RejectedExecutionException) { complete(null,"The tool is busy. Retry.") }
+            } else try {
                 translator=translationFactory(writingSource,writingTarget)
                 translator?.translate(draft) { result -> complete(result,"Translation unavailable. Download the model first, then retry.") }
             } catch (_:RuntimeException) { complete(null,"Could not start translation.") }
             "ai" -> {
                 val settings=AiConnection(this)
-                if(!settings.ready()) { complete(null,"Set up a trusted provider using Connection, then press Generate."); return }
-                val endpoint=settings.endpoint(); val model=settings.model()
-                val token=try { settings.token() } catch (_:Exception) { complete(null,"Saved token is unavailable. Re-enter it in Connection."); return }
-                val request=aiRequestFactory(); aiRequest=request
+                val provider=try { AIService(settings,aiRequestFactory).provider() } catch(e:AiFailure) { complete(null,e.problem.userMessage); return }
+                aiProvider=provider
                 val instruction=AiTools.instruction(writingStyle,writingTarget,writingCustom)
                 try { mediaWorker.execute {
-                    val result=try { request.generate(endpoint,model,token,instruction,draft,variants=true) } catch (_:Exception) { null }
-                    ui.post { complete(result,"AI request failed. Check your connection, provider access or quota; no text was inserted.") }
+                    if(revision!=writingRevision) { provider.cancel(); return@execute }
+                    var failure="AI temporarily unavailable. Retry or open Connection."
+                    val result=try { provider.generateText(instruction,draft,variants=true) } catch(e:AiFailure) { failure=e.problem.userMessage; null } catch (_:Exception) { null }
+                    ui.post { complete(result,failure) }
                 } } catch (_:java.util.concurrent.RejectedExecutionException) { complete(null,"The tool is busy. Please retry.") }
             }
         }
     }
-    private fun insertWriting() {
+    private fun insertWriting(replace:Boolean=true) {
         if(writingResult.isEmpty() || !VoicePolicy.allows(editor)) return
         if(editorAnchor()!=writingAnchor) { updateWriting("The cursor or text changed. Reload the selection before inserting."); return }
         try {
-            if(EditorCommands.type(currentInputConnection,writingResult)) { closeWriting(); refreshSuggestions() }
+            val connection=currentInputConnection ?: return
+            val done=if(replace && writingTargetText!=null) writingTargetText!!.replace(connection,writingResult) else if(!replace && !connection.getSelectedText(0).isNullOrEmpty()) {
+                val selected=connection.getSelectedText(1)
+                if(selected==null || selected.length>2000) { updateWriting("Place the cursor where you want to insert, then retry."); false }
+                else connection.commitText(android.text.TextUtils.concat(selected,writingResult),1)
+            } else EditorCommands.type(connection,writingResult)
+            if(done) { closeWriting(); refreshSuggestions() }
             else updateWriting("This editor did not accept the result.")
         } catch (_:RuntimeException) { updateWriting("The editor is no longer available.") }
     }
@@ -459,7 +496,7 @@ class RaabtaInputMethodService : InputMethodService() {
     }
     private fun refreshSuggestions() {
         ui.removeCallbacks(suggestionUpdate)
-        ui.postDelayed(suggestionUpdate,16)
+        ui.postDelayed(suggestionUpdate,options.number("suggestion_delay").toLong())
     }
     private fun filtered(value:String):Boolean = !options.enabled("offensive_filter") ||
         value.lowercase().split(Regex("[^\\p{L}]+" )).none { it in setOf("fuck","shit","bitch") }
@@ -538,7 +575,7 @@ class RaabtaInputMethodService : InputMethodService() {
         }
     }
     private fun tool(name:String) {
-        if(name=="writing:voice") { voiceToTranslation=true; toggleVoice(); return }
+        if(name=="writing:voice") { writingDraft=""; writingTargetText=null; writingAnchor=editorAnchor(); voiceToTranslation=true; toggleVoice(); return }
         voice.cancel()
         if(name.startsWith("writing:")) { writingAction(name.substringAfter(':')); return }
         if(name.startsWith("voice-language:")) {
@@ -547,14 +584,26 @@ class RaabtaInputMethodService : InputMethodService() {
             if(name.substringAfter(':')!=VoiceSettings.MIXED) VoiceSettings.setMixedPrimary(this,name.substringAfter(':'))
             keyboard?.showVoiceLanguages(); return
         }
-        if(name in listOf("translate","ai","roman")) { openWriting(name); return }
+        if(name in listOf("translate","ai","roman","grammar","rewrite","tone")) {
+            writingAutoStyle=name in listOf("rewrite","tone")
+            if(name=="grammar") writingStyle="correct" else if(name=="rewrite") writingStyle="rewrite" else if(name=="tone") writingStyle="polite" else if(name=="ai") writingStyle="ask"
+            openWriting(if(name in listOf("grammar","rewrite","tone")) "ai" else name)
+            keyboard?.setActiveTool(when(name) { "grammar" -> "Grammar"; "rewrite" -> "Rewrite"; "tone" -> "Tone"; "translate" -> "Translation"; else -> "AI" })
+            if(name=="grammar" && writingDraft.isNotBlank()) runWriting()
+            return
+        }
         closeWriting(); learningBuffer=""
         when(name) {
-            "tools" -> keyboard?.showSettings("Tools")
+            "tools" -> { keyboard?.showSettings("Tools"); keyboard?.setActiveTool("Tools") }
+            "voice:retry" -> toggleVoice()
+            "settings" -> { keyboard?.showSettings(""); startActivity(Intent(this,dev.raabta.keyboard.setup.KeyboardSettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            "connections" -> { keyboard?.showConnections(AiConnection(this)); keyboard?.setActiveTool("Tools") }
+            "connection:test" -> testProvider()
+            "connection:toggle" -> { val settings=AiConnection(this); settings.setActive(!settings.active()); keyboard?.showConnections(settings) }
             "editing" -> keyboard?.showEditingTools()
             "emoji" -> keyboard?.showEmojiPicker()
             "media" -> keyboard?.showMediaPicker()
-            "clipboard" -> {
+            "clipboard", "clipboard:refresh" -> {
                 if(VoicePolicy.allows(editor)) { clipboard.refresh(); keyboard?.showClipboard(clipboard.candidates(options.enabled("clipboard_items"))) }
                 else keyboard?.showClipboard(emptyList())
             }
@@ -570,7 +619,7 @@ class RaabtaInputMethodService : InputMethodService() {
             "ai:clear" -> AiConnection(this).clear()
             "permissions" -> startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,"package:$packageName".toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             "share" -> startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                type="text/plain"; putExtra(Intent.EXTRA_TEXT,"Raabta Keyboard: https://github.com/gityy34/keybord-ai-/tree/apk-ui-0.5.0")
+                type="text/plain"; putExtra(Intent.EXTRA_TEXT,"Raabta Keyboard: https://github.com/gityy34/keybord-ai-/tree/apk-complete-0.6.0")
             },"Share Raabta").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             else -> if(name.startsWith("edit:")) {
                 val connection=currentInputConnection
@@ -618,6 +667,25 @@ class RaabtaInputMethodService : InputMethodService() {
         }
         return super.onKeyDown(keyCode,event)
     }
+    private fun testProvider() {
+        val current=keyboard ?: return
+        val settings=AiConnection(this)
+        if(!settings.configured()) { current.showTextMessage("Save a connection first using Change Provider."); return }
+        val revision=writingRevision; val generation=editorGeneration
+        current.findViewWithTag<View>("ConnectionTest")?.isEnabled=false
+        current.showTextMessage("Connecting…")
+        try { mediaWorker.execute {
+            if(revision!=writingRevision) return@execute
+            val failure=try {
+                val provider=AIService(settings,aiRequestFactory).provider(forTest=true); aiProvider=provider
+                if(revision!=writingRevision) { provider.cancel(); return@execute }
+                provider.testConnection(); null
+            } catch(e:AiFailure) { e.problem.userMessage } catch (_:Exception) { "Connection could not be verified. Retry." }
+            ui.post { if(current===keyboard && generation==editorGeneration && revision==writingRevision) {
+                settings.recordTest(failure==null); current.showConnections(settings); current.showTextMessage(failure ?: "Connected successfully.")
+            } }
+        } } catch (_:java.util.concurrent.RejectedExecutionException) { current.findViewWithTag<View>("ConnectionTest")?.isEnabled=true; current.showTextMessage("Busy. Retry shortly.") }
+    }
     private fun hideTools() {
         showing=false; closeWriting(); learningBuffer=""; deleteSelection.cancel(); deleting=false; keyboard?.hideVoiceLanguages(); ui.removeCallbacks(suggestionUpdate); clipboard.clear(); contactNames=emptyList()
         try { getSystemService(ClipboardManager::class.java)?.removePrimaryClipChangedListener(clipboardListener); contentResolver.unregisterContentObserver(screenshotObserver) } catch (_:RuntimeException) { }
@@ -654,6 +722,7 @@ class RaabtaInputMethodService : InputMethodService() {
     }
 
     private fun voiceError(error: VoiceError) {
+        keyboard?.showVoiceFailure()
         val text = when (error) {
         VoiceError.PERMISSION -> R.string.voice_permission_denied
         VoiceError.UNAVAILABLE -> R.string.voice_error_unavailable

@@ -27,6 +27,7 @@ class KeyboardSettingsActivity:Activity() {
     }
     private fun showPage(value:String) {
         if(value.isEmpty()) { finish(); return }
+        if(value=="Connections") { startActivity(Intent(this,AiConnectionActivity::class.java)); return }
         val scroll=if(value==page) findViewById<android.view.View>(android.R.id.content)?.findViewWithTag<android.widget.ScrollView>("SettingsScroll")?.scrollY ?: 0 else 0
         page=value
         val palette=Palette.from(this)
@@ -46,7 +47,7 @@ class KeyboardSettingsActivity:Activity() {
                 insets
             }
         })
-        findViewById<android.view.View>(android.R.id.content).findViewWithTag<android.widget.ScrollView>("SettingsScroll")?.let { body -> body.post { body.scrollTo(0,scroll) } }
+        findViewById<android.view.View>(android.R.id.content).findViewWithTag<android.widget.ScrollView>("SettingsScroll")?.let { body -> body.addOnLayoutChangeListener(object:android.view.View.OnLayoutChangeListener { override fun onLayoutChange(v:android.view.View,l:Int,t:Int,r:Int,b:Int,ol:Int,ot:Int,or:Int,ob:Int) { if(b>t) { body.removeOnLayoutChangeListener(this); body.scrollTo(0,scroll) } } }) }
     }
     override fun onResume() { super.onResume(); showPage(page) }
     private fun action(value:String) {
@@ -65,7 +66,7 @@ class KeyboardSettingsActivity:Activity() {
                 }.setNegativeButton("Cancel",null).show()
             }
             value=="share" -> startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                type="text/plain"; putExtra(Intent.EXTRA_TEXT,"Raabta Keyboard: https://github.com/gityy34/keybord-ai-/tree/apk-ui-0.5.0")
+                type="text/plain"; putExtra(Intent.EXTRA_TEXT,"Raabta Keyboard: https://github.com/gityy34/keybord-ai-/tree/apk-complete-0.6.0")
             },"Share Raabta"))
             else -> AlertDialog.Builder(this).setMessage("Use this tool from the Raabta keyboard toolbar while editing text.").setPositiveButton("OK",null).show()
         }

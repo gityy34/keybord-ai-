@@ -50,7 +50,7 @@ class AdvancedKeyboardTest {
         view=service.onCreateInputView() as KeyboardView
     }
     @After fun close() { service.onDestroy() }
-    private fun click(tag:String) { val v=view.findViewWithTag<View>(tag); assertNotNull("Missing $tag",v); assertTrue(v.performClick()) }
+    private fun click(tag:String) { if(tag=="Settings") { view.findViewWithTag<View>("Tools").performClick(); view.findViewWithTag<View>("settings:Settings").performClick(); return }; val v=view.findViewWithTag<View>(tag); assertNotNull("Missing $tag",v); assertTrue(v.performClick()) }
     private fun type(text:String) { text.forEach { click(if(it==' ') "Space" else "text:$it") } }
     private fun update() { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(60)) }
     private fun fullSettings():dev.raabta.keyboard.setup.KeyboardSettingsActivity {

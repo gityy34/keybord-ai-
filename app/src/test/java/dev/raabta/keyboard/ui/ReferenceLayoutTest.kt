@@ -58,7 +58,7 @@ class ReferenceLayoutTest {
                     assertTrue("$tag text at side ($textCentre in ${child.width})",kotlin.math.abs(textCentre-child.width/2f)<=2)
                 }
             }
-            if(child is Button) {
+            if(child is Button && child !is ToolbarButton) {
                 val bounds=Rect(0,0,child.width,child.height); view.offsetDescendantRectToMyCoords(child,bounds)
                 assertTrue("Button outside keyboard ${child.tag}: $bounds",bounds.left>=0 && bounds.right<=view.width && bounds.top>=0 && bounds.bottom<=view.height)
             }
@@ -67,7 +67,7 @@ class ReferenceLayoutTest {
     private fun screenshot(view:View,name:String) {
         val bitmap=Bitmap.createBitmap(view.width,view.height,Bitmap.Config.ARGB_8888)
         view.draw(Canvas(bitmap))
-        val path=File("/workspace/artifacts/ui-0.5.0/$name.png"); path.parentFile?.mkdirs()
+        val path=File("/workspace/artifacts/ui-0.6.0/$name.png"); path.parentFile?.mkdirs()
         path.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }; bitmap.recycle()
     }
     @Test fun actualEnglishUrduAndRomanLabelsFitAndRemainCentredAtDifferentWidths() {
@@ -90,12 +90,13 @@ class ReferenceLayoutTest {
         assertTrue(view.findViewWithTag<View>("VoiceDismiss").isEnabled)
         view.setVoiceState(VoiceState.IDLE); assertEquals(View.GONE,view.findViewWithTag<View>("VoiceRecorder").visibility)
     }
-    @Test fun writingResultsHaveReferenceCardsAndFitCompactWindowWithoutKeyRows() {
+    @Test fun writingResultsHaveReferenceCardsAndKeepNormalKeyRows() {
         val view=keyboard(); view.showWritingTool("ai","ur","en","humanise")
         view.updateWritingTool("hello","Hello there","Review the result.",false,listOf("Hello there","Hi there","Good morning"))
         measure(view,320); screenshot(view,"ai-results")
         assertNotNull(view.findViewWithTag<View>("ResultCard:2"))
-        assertTrue(view.measuredHeight<context.dp(500))
+        assertTrue(view.findViewWithTag<View>("text:q").visibility==View.VISIBLE)
+        assertTrue(view.measuredHeight<context.dp(900))
         view.showWritingTool("translate","ur","en","rewrite"); measure(view,360); screenshot(view,"translation")
     }
     @Test fun fullSettingsUsesWholeActivityAndThemeCategoriesRenderWithInsets() {
@@ -112,5 +113,39 @@ class ReferenceLayoutTest {
         root.layout(0,0,root.measuredWidth,root.measuredHeight)
         screenshot(root,"preferences")
         controller.pause().stop().destroy()
+    }
+    @Test fun settingsDeepToggleRestoresScrollAfterTheReplacementViewLaysOut() {
+        val controller=org.robolectric.Robolectric.buildActivity(dev.raabta.keyboard.setup.KeyboardSettingsActivity::class.java).setup()
+        val root=controller.get().findViewById<ViewGroup>(android.R.id.content)
+        root.findViewWithTag<View>("settings:Preferences").performClick()
+        fun layout() { root.measure(View.MeasureSpec.makeMeasureSpec(context.dp(360),View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(context.dp(640),View.MeasureSpec.EXACTLY)); root.layout(0,0,root.measuredWidth,root.measuredHeight) }
+        layout()
+        val scroll=root.findViewWithTag<android.widget.ScrollView>("SettingsScroll")
+        scroll.scrollTo(0,context.dp(600)); val position=scroll.scrollY; assertTrue(position>0)
+        root.findViewWithTag<android.widget.Switch>("option:popup").performClick(); layout()
+        assertEquals(position,root.findViewWithTag<android.widget.ScrollView>("SettingsScroll").scrollY)
+        controller.pause().stop().destroy()
+    }
+    @Test fun toolbarCanScrollAndTheActiveToolIsBroughtInsideItsViewport() {
+        val view=keyboard(); measure(view,280); view.setActiveTool("Tools")
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        val button=view.findViewWithTag<View>("Tools"); assertTrue(button.isSelected)
+        val bounds=Rect(0,0,button.width,button.height); view.offsetDescendantRectToMyCoords(button,bounds)
+        assertTrue(bounds.left>=0 && bounds.right<=view.width)
+    }
+    @Test @Config(qualifiers="w640dp-h360dp-land") fun aiAndVoiceKeepTypingKeysInsideFiniteLandscapeWindow() {
+        val view=keyboard()
+        fun boundedLayout() {
+            view.measure(View.MeasureSpec.makeMeasureSpec(context.dp(640),View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(context.dp(320),View.MeasureSpec.AT_MOST))
+            view.layout(0,0,view.measuredWidth,view.measuredHeight)
+            assertTrue(view.height<=context.dp(320))
+            for(tag in listOf("text:q","Space","Delete","Enter")) {
+                val key=view.findViewWithTag<View>(tag); assertTrue(key.height>0)
+                val rect=Rect(0,0,key.width,key.height); view.offsetDescendantRectToMyCoords(key,rect)
+                assertTrue("$tag outside available landscape window: $rect",rect.top>=0 && rect.bottom<=view.height)
+            }
+        }
+        view.showWritingTool("ai","ur","en","formal"); boundedLayout(); screenshot(view,"tone-landscape")
+        view.closeWritingTool(); view.setVoiceState(VoiceState.LISTENING); view.showVoiceLanguages(); boundedLayout(); screenshot(view,"voice-landscape")
     }
 }

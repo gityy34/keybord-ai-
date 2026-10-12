@@ -101,3 +101,10 @@ Balanced suggestion slots, 2/3/4 count, bounded local word-frequency learning, R
 ### 0.5 UI and writing-tool update
 
 Reference-based Midnight purple theme, centred/fitted labels and separate symbol hints; full-screen categorized settings; vector mic, real recognizer RMS and Stop/Cancel; AI tool/category chips and English/Urdu dropdowns, in-memory custom instructions, up to three provider previews, Show changes and Replace Text; local emoji search/categories. Uses original code and existing verified dependencies. Online AI still needs a chosen provider; OPPO acceptance remains required.
+
+
+### 0.6 toolbar, connection and responsiveness update
+
+Existing project upgraded in place: seven-tool scrolling toolbar, inline AI/result/tone panels with normal keys retained, compact voice timer/level/status/retry, provider-neutral service and Groq/Custom presets, secure Connections controls and real request-based tests, sentence-aware Replace/Insert/Copy, full translation language selection, immediate touch commits, sensitivity/response sliders, Clipboard on/off and settings scroll retention. Regression/build evidence and complete changed-file list: COMPLETE_0.6_VALIDATION.md. Current provider research/security/free-tier limits: AI_PROVIDER_0.6_REVIEW.md.
+
+**The requested fully functional product is not yet fully accepted:** live provider testing/current free-tier verification require a developer key and allowed API destinations; physical OPPO microphone, local translation quality, host-app editing and sustained performance checks remain. Do not count controlled transport tests as live inference or claim zero possible crashes. Existing broad dictionaries, probabilistic glide, online media and production signing remain later work.
