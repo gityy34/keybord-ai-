@@ -39,7 +39,7 @@ class ToolbarButton(context: Context) : KeyButton(context) {
         if (lastIcon != icon) { lastIcon = icon; artwork = androidx.appcompat.content.res.AppCompatResources.getDrawable(context,icon)?.mutate() }
         artwork?.apply {
             setTint(currentTextColor)
-            val size = context.dp(22).coerceAtMost(width).coerceAtMost(height)
+            val size = context.dp(24).coerceAtMost(width).coerceAtMost(height)
             val top=if(caption==null) (height-size)/2 else context.dp(5)
             setBounds((width-size)/2, top, (width+size)/2, top+size)
             draw(canvas)

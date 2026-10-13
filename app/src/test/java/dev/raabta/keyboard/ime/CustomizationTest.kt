@@ -59,6 +59,9 @@ class CustomizationTest {
         store.move("Clipboard",true)
         store.reorder("Clipboard","AI",true)
         assertEquals("Clipboard",ToolOrder(context).toolbar().first().id)
+        store.reorder("Clipboard", "Rewrite", true)
+        assertEquals("Rewrite", ToolOrder(context).toolbar()[2].id)
+        assertEquals(3, ToolOrder(context).toolbar().indexOfFirst { it.id == "Clipboard" })
         store.move("Grammar",false)
         assertTrue(ToolOrder(context).more().any { it.id=="Grammar" })
         val ids=store.toolbar().map(KeyboardTool::id)+store.more().map(KeyboardTool::id)
@@ -93,9 +96,29 @@ class CustomizationTest {
             shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofMillis(millis))
             button.onTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_UP,12f,12f,0))
         }
-        hold("Space",5_000); hold("Language",2_500)
+        hold("Space",1_500); hold("Language",1_500)
         assertEquals(2,switchers); assertTrue(taps.isEmpty())
-        assertEquals("↵",view.findViewWithTag<android.widget.TextView>("Enter").text.toString())
+        val enter=view.findViewWithTag<android.widget.TextView>("Enter")
+        assertEquals("↵",enter.text.toString())
+        assertTrue(enter.textSize > context.resources.displayMetrics.scaledDensity * 20f)
+    }
+    @Test fun toolsEditModeBlocksActionsAndReturnsToNormalActions() {
+        val actions = mutableListOf<String>()
+        val view = KeyboardView(context, onTool = { actions.add(it) })
+        view.render(R.string.key_enter)
+        view.showSettings("Tools")
+        val edit = view.findViewWithTag<View>("ToolsEdit")
+        val clipboard = view.findViewWithTag<View>("settings:Clipboard")
+        assertNotNull(edit)
+        assertNotNull(clipboard)
+        edit.performClick()
+        assertTrue(edit.isSelected)
+        view.findViewWithTag<View>("settings:Clipboard").performClick()
+        assertTrue(actions.isEmpty())
+        edit.performClick()
+        assertFalse(edit.isSelected)
+        view.findViewWithTag<View>("settings:Clipboard").performClick()
+        assertEquals(listOf("clipboard"), actions)
     }
     @Test @GraphicsMode(GraphicsMode.Mode.NATIVE) fun clipboardGridFitsKeyboardWorkspaceAndOldRemainsReachable() {
         val h=history(); (1..7).forEach { time+=1_000; h.add("copied item $it") }

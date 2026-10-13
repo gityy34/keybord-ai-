@@ -65,18 +65,30 @@ class ReferenceThemeTest {
             assertTrue(ThemePicker(context).findViewWithTag<View>("choice:Theme:${theme.ordinal}").isSelected)
         }
     }
-    @Test fun newSurfacesKeepReadableTextAndDistinctToolbarColors() {
+    @Test fun newSurfacesKeepReadableTextAndMonochromeToolbarIcons() {
         for(theme in themes) {
             val colors = Palette.forTheme(theme)
             assertNotEquals(SurfaceStyle.FLAT, colors.style)
             for(surface in listOf(colors.background, colors.surface, colors.key)) assertTrue("$theme text contrast", ColorUtils.calculateContrast(colors.text, surface) >= 4.5)
             assertTrue(ColorUtils.calculateContrast(colors.onAccent, colors.accent) >= 4.5)
             for(stop in listOf(colors.actionStart, colors.actionEnd)) assertTrue("$theme action contrast", ColorUtils.calculateContrast(colors.onAccent, stop) >= 4.5)
-            assertEquals(7, (0..6).map(colors::icon).distinct().size)
+            assertEquals(listOf(colors.text), (0..6).map(colors::icon).distinct())
             for(index in 0..6) assertTrue("$theme icon $index", ColorUtils.calculateContrast(colors.icon(index), colors.surface) >= 3.0)
             assertTrue(colors.shape() is ThemeSurfaceDrawable)
         }
         assertEquals(SurfaceStyle.FLAT, Palette.forTheme(KeyboardTheme.NEON).style)
+    }
+    @Test fun builtInThemesUseMonochromeIconsAndBlueEnterActions() {
+        for (theme in KeyboardTheme.entries.filter { it != KeyboardTheme.CUSTOM && it != KeyboardTheme.SYSTEM }) {
+            val colors = Palette.forTheme(theme)
+            assertEquals("$theme toolbar icon", colors.text, colors.icon(2))
+            assertTrue("$theme icon contrast", ColorUtils.calculateContrast(colors.icon(2), colors.background) >= 4.5)
+            val hsv = FloatArray(3)
+            android.graphics.Color.colorToHSV(colors.accent, hsv)
+            assertTrue("$theme Enter accent is blue", hsv[0] in 190f..245f)
+        }
+        assertEquals(Palette.forTheme(KeyboardTheme.LIGHT).icon(), Palette.forTheme(KeyboardTheme.SYSTEM, false).icon())
+        assertEquals(Palette.forTheme(KeyboardTheme.DARK).icon(), Palette.forTheme(KeyboardTheme.SYSTEM, true).icon())
     }
     @Test fun renderedKeysPanelsAndVoiceShareTheSelectedStyleAndSameKeyboardHeight() {
         for(theme in themes) {
@@ -86,6 +98,9 @@ class ReferenceThemeTest {
             view.setActiveTool("Tone")
             assertTrue(view.findViewWithTag<View>("Tone").isSelected)
             view.showSettings("Tools"); layout(view); assertEquals(height, view.height); screenshot(view, "${theme.name}-tools")
+            view.findViewWithTag<View>("ToolsEdit").performClick(); layout(view)
+            assertEquals(height, view.height); screenshot(view, "${theme.name}-tools-edit")
+            view.findViewWithTag<View>("ToolsEdit").performClick()
             view.findViewWithTag<View>("SettingsBack").performClick(); layout(view); assertEquals(height, view.height)
             view.showWritingTool("ai", "ur", "en", "polite")
             view.updateWritingTool("Draft", "First option", "Review.", false, listOf("First option", "Second option", "Third option"))

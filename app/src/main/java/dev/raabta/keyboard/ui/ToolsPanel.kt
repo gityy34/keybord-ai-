@@ -12,7 +12,7 @@ import dev.raabta.keyboard.ime.KeyboardTool
 import dev.raabta.keyboard.ime.ToolOrder
 import dev.raabta.keyboard.ime.ToolbarButton
 
-/** Movable tools. Long-press to reorder or send a tool to the toolbar. */
+/** The edit control enables direct hold-and-drag reordering of the Tools grid. */
 class ToolsPanel @JvmOverloads constructor(
     context: Context, back: () -> Unit = {}, action: (String) -> Unit = {},
     private val changed: () -> Unit = {},
@@ -25,6 +25,10 @@ class ToolsPanel @JvmOverloads constructor(
     private val dragOrigins = mutableMapOf<String, Pair<Int, Int>>()
     private var undoAvailable = false
     private var redoAvailable = false
+    private var editing = false
+    private lateinit var editButton: ToolbarButton
+    private lateinit var scroller: ScrollView
+    private val toolAction = action
     init {
         orientation = VERTICAL; tag = "SettingsPanel"; setBackgroundColor(palette.background)
         val heading = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
@@ -33,9 +37,23 @@ class ToolsPanel @JvmOverloads constructor(
             setTextColor(palette.text); background = palette.pressed(radius=context.dp(10).toFloat()); setOnClickListener { back() }
         }, LayoutParams(context.dp(48),context.dp(48)))
         heading.addView(TextView(context).apply { setText(R.string.tools_menu_title); textSize=18f; setTextColor(palette.text) },LayoutParams(0,LayoutParams.WRAP_CONTENT,1f))
+        editButton = ToolbarButton(context).apply {
+            text = "✎"; tag = "ToolsEdit"; contentDescription = "Edit tool order"
+            setTextColor(palette.text)
+            background = palette.toolbarBackground(0, false, context.dp(10).toFloat())
+            setOnClickListener {
+                editing = !editing
+                isSelected = editing
+                setTextColor(if (editing) palette.onAccent else palette.text)
+                background = palette.toolbarBackground(0, editing, context.dp(10).toFloat())
+                populate(toolAction)
+            }
+        }
+        heading.addView(editButton, LayoutParams(context.dp(48), context.dp(48)))
         addView(heading)
         grid.apply { orientation=VERTICAL; setPadding(context.dp(6),0,context.dp(6),context.dp(6)); tag="ToolsGrid" }
-        addView(ScrollView(context).apply { tag="ToolsScroll"; addView(grid) },LayoutParams(LayoutParams.MATCH_PARENT,0,1f))
+        scroller = ScrollView(context).apply { tag="ToolsScroll"; addView(grid) }
+        addView(scroller,LayoutParams(LayoutParams.MATCH_PARENT,0,1f))
         populate(action)
     }
     private fun icon(tool: KeyboardTool): Int = when(tool.id) {
@@ -58,6 +76,7 @@ class ToolsPanel @JvmOverloads constructor(
         else -> R.drawable.ic_ai
     }
     private fun populate(action: (String) -> Unit) {
+        val previousScroll = if (::scroller.isInitialized) scroller.scrollY else 0
         grid.removeAllViews(); historyButtons.clear(); tileViews.clear(); dragOrigins.clear()
         order.more().chunked(3).forEachIndexed { rowIndex, tools ->
             val row=LinearLayout(context).apply { isBaselineAligned=false; tag="ToolRow:$rowIndex" }
@@ -65,7 +84,7 @@ class ToolsPanel @JvmOverloads constructor(
                 val tile=LinearLayout(context).apply {
                     orientation=VERTICAL; gravity=Gravity.CENTER; isClickable=true; isFocusable=true
                     tag="settings:${tool.id}"; contentDescription=tool.label
-                    background=palette.pressed(radius=context.dp(12).toFloat())
+                    background=palette.pressed(if (editing) palette.surface else palette.background, context.dp(12).toFloat())
                     addView(ImageView(context).apply {
                         setImageDrawable(AppCompatResources.getDrawable(context,icon(tool)))
                         imageTintList=android.content.res.ColorStateList.valueOf(palette.icon(rowIndex*3+column))
@@ -75,24 +94,39 @@ class ToolsPanel @JvmOverloads constructor(
                         text=tool.label; textSize=12f; maxLines=2; gravity=Gravity.CENTER; setTextColor(palette.text)
                         setPadding(context.dp(2),context.dp(5),context.dp(2),0)
                     })
-                    setOnClickListener { action(tool.command) }
+                    if (editing) addView(TextView(context).apply {
+                        text = "⋮⋮"; textSize = 12f; gravity = Gravity.CENTER; setTextColor(palette.muted)
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    })
+                    setOnClickListener { if (!editing) action(tool.command) }
                     setOnLongClickListener { view ->
-                        PopupMenu(context,view).apply {
-                            menu.add("Reorder").setOnMenuItemClickListener {
-                                rememberOrigins()
-                                view.startDragAndDrop(ClipData.newPlainText("tool",tool.id),View.DragShadowBuilder(view),tool.id,0); true
+                        if (editing) {
+                            rememberOrigins()
+                            view.startDragAndDrop(ClipData.newPlainText("tool",tool.id),View.DragShadowBuilder(view),tool.id,0)
+                        } else {
+                            PopupMenu(context,view).apply {
+                                menu.add("Move to Toolbar").setOnMenuItemClickListener {
+                                    order.move(tool.id,true); changed(); populate(action); true
+                                }
+                                show()
                             }
-                            menu.add("Move to Toolbar").setOnMenuItemClickListener {
-                                order.move(tool.id,true); changed(); populate(action); true
-                            }
-                            show()
-                        }; true
+                            true
+                        }
                     }
                     setOnDragListener { _,event ->
                         when(event.action) {
-                            DragEvent.ACTION_DRAG_STARTED -> event.localState is String
+                            DragEvent.ACTION_DRAG_STARTED -> editing && event.localState is String
                             DragEvent.ACTION_DRAG_ENTERED -> {
                                 (event.localState as? String)?.let { previewOrder(it,tool.id) }; true
+                            }
+                            DragEvent.ACTION_DRAG_LOCATION -> {
+                                val edge = context.dp(32)
+                                val y = row.top + this.top + event.y - scroller.scrollY
+                                when {
+                                    y < edge -> scroller.scrollBy(0, -context.dp(22))
+                                    y > scroller.height - edge -> scroller.scrollBy(0, context.dp(22))
+                                }
+                                true
                             }
                             DragEvent.ACTION_DROP -> {
                                 val source=event.localState as? String ?: return@setOnDragListener false
@@ -111,6 +145,7 @@ class ToolsPanel @JvmOverloads constructor(
             grid.addView(row)
         }
         historyAvailability(undoAvailable,redoAvailable)
+        if (previousScroll > 0) scroller.post { scroller.scrollTo(0, previousScroll) }
     }
     private fun rememberOrigins() {
         dragOrigins.clear()
@@ -132,7 +167,7 @@ class ToolsPanel @JvmOverloads constructor(
             val here=dragOrigins[id] ?: return@forEachIndexed
             val there=dragOrigins[destination] ?: return@forEachIndexed
             tileViews[id]?.animate()?.translationX((there.first-here.first).toFloat())
-                ?.translationY((there.second-here.second).toFloat())?.setDuration(120)?.start()
+                ?.translationY((there.second-here.second).toFloat())?.setDuration(85)?.start()
         }
     }
     private fun resetPreview() {
@@ -142,7 +177,7 @@ class ToolsPanel @JvmOverloads constructor(
     fun historyAvailability(undo: Boolean, redo: Boolean) {
         undoAvailable=undo; redoAvailable=redo
         for((command,available) in listOf("edit:undo" to undo,"edit:redo" to redo)) historyButtons[command]?.apply {
-            isEnabled=available; alpha=if(available) 1f else 0.38f
+            isEnabled=available || editing; alpha=if(available || editing) 1f else 0.38f
             contentDescription=if(available) command.substringAfter(':') else "${command.substringAfter(':')} unavailable"
         }
     }

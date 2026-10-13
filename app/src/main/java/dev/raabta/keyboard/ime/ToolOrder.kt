@@ -69,8 +69,9 @@ class ToolOrder(context: Context) {
         val menu = more().map(KeyboardTool::id).toMutableList()
         val section = if (inToolbar) bar else menu
         if (source !in section || target !in section || source == target) return
+        val destination = section.indexOf(target)
         section.remove(source)
-        section.add(section.indexOf(target), source)
+        section.add(destination, source)
         save(bar, menu)
     }
 }

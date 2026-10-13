@@ -144,6 +144,19 @@ class KeyboardView @JvmOverloads constructor(
         title.visibility=if(options.enabled("floating")) View.VISIBLE else View.GONE
         content.addView(title,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(28)))
         toolbarScroller=android.widget.HorizontalScrollView(context).apply { tag="KeyboardToolbar"; isHorizontalScrollBarEnabled=false; addView(header) }
+        toolbarScroller?.setOnDragListener { _, event ->
+            when (event.action) {
+                DragEvent.ACTION_DRAG_STARTED -> event.localState is String
+                DragEvent.ACTION_DROP -> {
+                    val source = event.localState as? String ?: return@setOnDragListener false
+                    val last = toolOrder.toolbar().lastOrNull()?.id ?: return@setOnDragListener false
+                    toolOrder.reorder(source, last, true)
+                    refreshToolbar()
+                    true
+                }
+                else -> true
+            }
+        }
         val toolbarRow=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL }
         toolbarContainer=toolbarRow
         toolbarRow.addView(toolbarScroller,LayoutParams(0,context.dp(52),1f))
@@ -151,6 +164,19 @@ class KeyboardView @JvmOverloads constructor(
             tag="Tools"; caption="More"; contentDescription="More tools"
         }
         toolbarButtons["Tools"]=more
+        more.setOnDragListener { _, event ->
+            when (event.action) {
+                DragEvent.ACTION_DRAG_STARTED -> event.localState is String
+                DragEvent.ACTION_DROP -> {
+                    val source = event.localState as? String ?: return@setOnDragListener false
+                    if (toolOrder.toolbar().none { it.id == source }) return@setOnDragListener false
+                    toolOrder.move(source, false)
+                    refreshToolbar()
+                    true
+                }
+                else -> true
+            }
+        }
         toolbarRow.addView(more,LayoutParams(context.dp(48),context.dp(52)))
         content.addView(toolbarRow,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(52)))
         refreshToolbar()
@@ -186,22 +212,26 @@ class KeyboardView @JvmOverloads constructor(
             bar.addView(button,LayoutParams(context.dp(48),context.dp(52)))
             toolbarButtons[tool.id]=button
             button.setOnLongClickListener { view ->
-                PopupMenu(context,view).apply {
-                    menu.add("Reorder").setOnMenuItemClickListener {
-                        rememberToolbarOrigins()
-                        view.startDragAndDrop(ClipData.newPlainText("tool",tool.id),View.DragShadowBuilder(view),tool.id,0); true
-                    }
-                    menu.add("Move to Tools").setOnMenuItemClickListener {
-                        toolOrder.move(tool.id,false); refreshToolbar(); true
-                    }
-                    show()
-                }; true
+                rememberToolbarOrigins()
+                view.startDragAndDrop(ClipData.newPlainText("tool",tool.id),View.DragShadowBuilder(view),tool.id,0)
             }
             button.setOnDragListener { _,event ->
                 when(event.action) {
                     DragEvent.ACTION_DRAG_STARTED -> event.localState is String
                     DragEvent.ACTION_DRAG_ENTERED -> {
                         (event.localState as? String)?.let { previewToolbarOrder(it,tool.id) }; true
+                    }
+                    DragEvent.ACTION_DRAG_LOCATION -> {
+                        val scroller = toolbarScroller
+                        if (scroller != null) {
+                            val x = button.left + event.x - scroller.scrollX
+                            val edge = context.dp(36)
+                            when {
+                                x < edge -> scroller.scrollBy(-context.dp(22), 0)
+                                x > scroller.width - edge -> scroller.scrollBy(context.dp(22), 0)
+                            }
+                        }
+                        true
                     }
                     DragEvent.ACTION_DROP -> {
                         val source=event.localState as? String ?: return@setOnDragListener false
@@ -234,7 +264,7 @@ class KeyboardView @JvmOverloads constructor(
             }
             val here=toolbarDragOrigins[id] ?: return@forEachIndexed
             val there=toolbarDragOrigins[destination] ?: return@forEachIndexed
-            toolbarButtons[id]?.animate()?.translationX((there-here).toFloat())?.setDuration(120)?.start()
+            toolbarButtons[id]?.animate()?.translationX((there-here).toFloat())?.setDuration(85)?.start()
         }
     }
     private fun toolbarVisible(visible: Boolean) {
@@ -334,11 +364,12 @@ class KeyboardView @JvmOverloads constructor(
             KeyboardHeight.TALL -> if (landscape) 48 else 64
         })
         for (key in keys) {
-            val button = (if (key == Key.Delete) RepeatingDeleteButton(context) else if(key==Key.Space || key==Key.Language || key is Key.Text) GestureKeyButton(context) else KeyButton(context)).apply {
+            val button = (if (key == Key.Delete) RepeatingDeleteButton(context) else if (key == Key.Enter) EnterKeyButton(context) else if(key==Key.Space || key==Key.Language || key is Key.Text) GestureKeyButton(context) else KeyButton(context)).apply {
                 isAllCaps = false
                 isSoundEffectsEnabled = false
                 isHapticFeedbackEnabled = preferences.vibration
-                textSize = if (key is Key.Text && key.text in LocalSuggestions.popularEmoji + options.emoji()) options.number("emoji_size").toFloat().coerceAtMost(if(landscape) 30f else 40f) else if (key is Key.Text) (if (landscape) options.number("font_size").toFloat().coerceAtMost(22f) else options.number("font_size").toFloat()) else 14f
+                textSize = if (key == Key.Enter) 28f else if (key is Key.Text && key.text in LocalSuggestions.popularEmoji + options.emoji()) options.number("emoji_size").toFloat().coerceAtMost(if(landscape) 30f else 40f) else if (key is Key.Text) (if (landscape) options.number("font_size").toFloat().coerceAtMost(22f) else options.number("font_size").toFloat()) else 14f
+                if (key == Key.Enter) typeface = android.graphics.Typeface.DEFAULT_BOLD
                 minWidth = 0
                 minimumWidth = 0
                 minHeight = 0
@@ -374,7 +405,7 @@ class KeyboardView @JvmOverloads constructor(
                         KeyboardMode.NUMERIC -> R.string.key_digits
                     })
                 }
-                (this as? KeyButton)?.apply { hintColor=palette.muted; fitLabel(if(key is Key.Text) (if(key.text in LocalSuggestions.popularEmoji + options.emoji()) options.number("emoji_size").toFloat() else options.number("font_size").toFloat()) else 14f) }
+                (this as? KeyButton)?.apply { hintColor=palette.muted; fitLabel(if(key == Key.Enter) 28f else if(key is Key.Text) (if(key.text in LocalSuggestions.popularEmoji + options.emoji()) options.number("emoji_size").toFloat() else options.number("font_size").toFloat()) else 14f) }
                 contentDescription = when (key) {
                     Key.Delete -> context.getString(R.string.key_delete)
                     Key.Shift -> context.getString(R.string.key_shift)
@@ -518,7 +549,7 @@ class KeyboardView @JvmOverloads constructor(
         button.tapSlop=android.view.ViewConfiguration.get(context).scaledTouchSlop*(0.75f+options.number("typing_sensitivity")/100f*1.75f)
         if(key==Key.Space && options.enabled("cursor_slide")) button.onMoveCursor={ onKey(Key.Cursor(it)) }
         if(key==Key.Space || key==Key.Language) {
-            button.stationaryHoldMillis=if(key==Key.Space) 5_000L else 2_500L
+            button.stationaryHoldMillis=1_500L
             button.onStationaryHold=onSwitch
         }
         if(key is Key.Text && state.mode==KeyboardMode.LETTERS) {
