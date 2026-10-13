@@ -120,6 +120,33 @@ class CustomizationTest {
         view.findViewWithTag<View>("settings:Clipboard").performClick()
         assertEquals(listOf("clipboard"), actions)
     }
+    @Test fun toolbarAndToolsReorderStayInsideKeyboardViews() {
+        val view = KeyboardView(context)
+        view.render(R.string.key_enter)
+        view.measure(View.MeasureSpec.makeMeasureSpec(420,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(700,View.MeasureSpec.AT_MOST))
+        view.layout(0,0,view.measuredWidth,view.measuredHeight)
+        val grammar = view.findViewWithTag<View>("Grammar")
+        val voice = view.findViewWithTag<View>("Voice")
+        grammar.dispatchTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,grammar.width/2f,grammar.height/2f,0))
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofMillis(800))
+        grammar.dispatchTouchEvent(MotionEvent.obtain(0,850,MotionEvent.ACTION_MOVE,voice.left+voice.width/2f,grammar.height/2f,0))
+        assertEquals(View.VISIBLE, view.findViewWithTag<View>("KeyboardToolbar").visibility)
+        grammar.dispatchTouchEvent(MotionEvent.obtain(0,900,MotionEvent.ACTION_UP,voice.left+voice.width/2f,grammar.height/2f,0))
+        assertTrue(ToolOrder(context).toolbar().map(KeyboardTool::id).indexOf("Grammar") > 1)
+
+        view.showSettings("Tools")
+        view.measure(View.MeasureSpec.makeMeasureSpec(420,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(700,View.MeasureSpec.AT_MOST))
+        view.layout(0,0,view.measuredWidth,view.measuredHeight)
+        view.findViewWithTag<View>("ToolsEdit").performClick()
+        val clipboard = view.findViewWithTag<View>("settings:Clipboard")
+        val settings = view.findViewWithTag<View>("settings:Settings")
+        clipboard.dispatchTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,clipboard.width/2f,clipboard.height/2f,0))
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(Duration.ofMillis(800))
+        clipboard.dispatchTouchEvent(MotionEvent.obtain(0,850,MotionEvent.ACTION_MOVE,settings.left+settings.width/2f,settings.top+settings.height/2f,0))
+        assertEquals(View.VISIBLE, view.findViewWithTag<View>("ToolsGrid").visibility)
+        clipboard.dispatchTouchEvent(MotionEvent.obtain(0,900,MotionEvent.ACTION_UP,settings.left+settings.width/2f,settings.top+settings.height/2f,0))
+        assertEquals("Clipboard", ToolOrder(context).more().first().id)
+    }
     @Test @GraphicsMode(GraphicsMode.Mode.NATIVE) fun clipboardGridFitsKeyboardWorkspaceAndOldRemainsReachable() {
         val h=history(); (1..7).forEach { time+=1_000; h.add("copied item $it") }
         val view=KeyboardView(context)

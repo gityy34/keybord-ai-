@@ -1,5 +1,6 @@
 package dev.raabta.keyboard.ime
 
+import android.annotation.SuppressLint
 import androidx.core.view.isVisible
 import android.content.Context
 import android.content.res.Configuration
@@ -14,8 +15,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.ScrollView
 import android.widget.PopupMenu
-import android.content.ClipData
-import android.view.DragEvent
+import android.view.MotionEvent
 import dev.raabta.keyboard.ui.KeyboardOptions
 import dev.raabta.keyboard.ui.KeyboardSettingsPanel
 import dev.raabta.keyboard.R
@@ -75,6 +75,11 @@ class KeyboardView @JvmOverloads constructor(
     private val toolbarButtons=mutableMapOf<String,Button>()
     private val toolOrder=ToolOrder(context)
     private val toolbarDragOrigins=mutableMapOf<String,Int>()
+    private val toolbarTouch = android.os.Handler(android.os.Looper.getMainLooper())
+    private var toolbarDragId: String? = null
+    private var toolbarDragTarget: String? = null
+    private var toolbarDragStartRawX = 0f
+    private var toolbarDragStartScroll = 0
     private var keyPopup: android.widget.PopupWindow? = null
     val floating get() = options.enabled("floating") && settingsPage.isEmpty()
     fun contentBounds():android.graphics.Rect {
@@ -144,41 +149,15 @@ class KeyboardView @JvmOverloads constructor(
         title.visibility=if(options.enabled("floating")) View.VISIBLE else View.GONE
         content.addView(title,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(28)))
         toolbarScroller=android.widget.HorizontalScrollView(context).apply { tag="KeyboardToolbar"; isHorizontalScrollBarEnabled=false; addView(header) }
-        toolbarScroller?.setOnDragListener { _, event ->
-            when (event.action) {
-                DragEvent.ACTION_DRAG_STARTED -> event.localState is String
-                DragEvent.ACTION_DROP -> {
-                    val source = event.localState as? String ?: return@setOnDragListener false
-                    val last = toolOrder.toolbar().lastOrNull()?.id ?: return@setOnDragListener false
-                    toolOrder.reorder(source, last, true)
-                    refreshToolbar()
-                    true
-                }
-                else -> true
-            }
-        }
         val toolbarRow=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL }
         toolbarContainer=toolbarRow
-        toolbarRow.addView(toolbarScroller,LayoutParams(0,context.dp(52),1f))
+        toolbarRow.addView(toolbarScroller,LayoutParams(0,context.dp(44),1f))
         val more=headerButton("▦",R.string.keyboard_title) { onTool("tools") }.apply {
             tag="Tools"; caption="More"; contentDescription="More tools"
         }
         toolbarButtons["Tools"]=more
-        more.setOnDragListener { _, event ->
-            when (event.action) {
-                DragEvent.ACTION_DRAG_STARTED -> event.localState is String
-                DragEvent.ACTION_DROP -> {
-                    val source = event.localState as? String ?: return@setOnDragListener false
-                    if (toolOrder.toolbar().none { it.id == source }) return@setOnDragListener false
-                    toolOrder.move(source, false)
-                    refreshToolbar()
-                    true
-                }
-                else -> true
-            }
-        }
-        toolbarRow.addView(more,LayoutParams(context.dp(48),context.dp(52)))
-        content.addView(toolbarRow,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(52)))
+        toolbarRow.addView(more,LayoutParams(context.dp(46),context.dp(44)))
+        content.addView(toolbarRow,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(44)))
         refreshToolbar()
         candidateRow.tag="SuggestionStrip"
         candidateRow.isBaselineAligned=false
@@ -209,43 +188,84 @@ class KeyboardView @JvmOverloads constructor(
             button.tag=tool.id; button.contentDescription=tool.label
             (button as? ToolbarButton)?.caption=tool.label
             (button.parent as? android.view.ViewGroup)?.removeView(button)
-            bar.addView(button,LayoutParams(context.dp(48),context.dp(52)))
+            bar.addView(button,LayoutParams(context.dp(46),context.dp(44)))
             toolbarButtons[tool.id]=button
-            button.setOnLongClickListener { view ->
-                rememberToolbarOrigins()
-                view.startDragAndDrop(ClipData.newPlainText("tool",tool.id),View.DragShadowBuilder(view),tool.id,0)
-            }
-            button.setOnDragListener { _,event ->
-                when(event.action) {
-                    DragEvent.ACTION_DRAG_STARTED -> event.localState is String
-                    DragEvent.ACTION_DRAG_ENTERED -> {
-                        (event.localState as? String)?.let { previewToolbarOrder(it,tool.id) }; true
-                    }
-                    DragEvent.ACTION_DRAG_LOCATION -> {
-                        val scroller = toolbarScroller
-                        if (scroller != null) {
-                            val x = button.left + event.x - scroller.scrollX
-                            val edge = context.dp(36)
-                            when {
-                                x < edge -> scroller.scrollBy(-context.dp(22), 0)
-                                x > scroller.width - edge -> scroller.scrollBy(context.dp(22), 0)
-                            }
-                        }
-                        true
-                    }
-                    DragEvent.ACTION_DROP -> {
-                        val source=event.localState as? String ?: return@setOnDragListener false
-                        toolOrder.reorder(source,tool.id,true); refreshToolbar(); true
-                    }
-                    DragEvent.ACTION_DRAG_ENDED -> {
-                        toolbarButtons.values.forEach { it.animate().translationX(0f).setDuration(100).start() }
-                        toolbarDragOrigins.clear(); true
-                    }
-                    else -> true
-                }
-            }
+            attachToolbarReorderTouch(button, tool.id)
         }
         setActiveTool("")
+    }
+    @SuppressLint("ClickableViewAccessibility")
+    private fun attachToolbarReorderTouch(button:Button, id:String) {
+        button.setOnTouchListener { view,event ->
+            when(event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    toolbarTouch.removeCallbacksAndMessages(null)
+                    toolbarDragId=null; toolbarDragTarget=id; toolbarDragStartRawX=event.rawX
+                    toolbarDragStartScroll=toolbarScroller?.scrollX ?: 0
+                    view.isPressed=true
+                    toolbarTouch.postDelayed({ beginToolbarReorder(id,button) },800)
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val active=toolbarDragId==id
+                    if(!active && kotlin.math.abs(event.rawX-toolbarDragStartRawX)>context.dp(8)) toolbarTouch.removeCallbacksAndMessages(null)
+                    if(active) updateToolbarReorder(button,event.rawX)
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    toolbarTouch.removeCallbacksAndMessages(null)
+                    view.isPressed=false
+                    if(toolbarDragId==id) finishToolbarReorder(commit=true) else view.performClick()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    toolbarTouch.removeCallbacksAndMessages(null)
+                    view.isPressed=false
+                    if(toolbarDragId==id) finishToolbarReorder(commit=false)
+                    true
+                }
+                else -> true
+            }
+        }
+    }
+    private fun beginToolbarReorder(id:String, button:Button) {
+        if(toolbarButtons[id] !== button || !button.isPressed) return
+        toolbarDragId=id; toolbarDragTarget=id; rememberToolbarOrigins()
+        button.bringToFront(); button.parent?.requestDisallowInterceptTouchEvent(true)
+        feedback.perform(button)
+    }
+    private fun updateToolbarReorder(button:Button, rawX:Float) {
+        val source=toolbarDragId ?: return
+        val scroller=toolbarScroller ?: return
+        val dx=rawX-toolbarDragStartRawX+(scroller.scrollX-toolbarDragStartScroll)
+        button.translationX=dx
+        val edge=context.dp(38)
+        val localX=rawX-IntArray(2).also { scroller.getLocationOnScreen(it) }[0]
+        when {
+            localX<edge -> scroller.scrollBy(-context.dp(18),0)
+            localX>scroller.width-edge -> scroller.scrollBy(context.dp(18),0)
+        }
+        val headerLocation=IntArray(2); header?.getLocationOnScreen(headerLocation)
+        val pointerInHeader=rawX-headerLocation[0]+(scroller.scrollX-toolbarDragStartScroll)
+        val target=toolOrder.toolbar().map(KeyboardTool::id).minByOrNull { id ->
+            val view=toolbarButtons[id] ?: return@minByOrNull Float.MAX_VALUE
+            kotlin.math.abs(pointerInHeader-(view.left+view.width/2f))
+        } ?: source
+        if(target!=toolbarDragTarget) {
+            toolbarDragTarget=target
+            previewToolbarOrder(source,target)
+        }
+    }
+    private fun finishToolbarReorder(commit:Boolean) {
+        val source=toolbarDragId
+        val target=toolbarDragTarget
+        toolbarButtons.values.forEach { it.animate().translationX(0f).setDuration(80).start() }
+        toolbarDragOrigins.clear(); toolbarDragId=null; toolbarDragTarget=null
+        toolbarButtons.values.forEach { it.parent?.requestDisallowInterceptTouchEvent(false) }
+        if(commit && source!=null && target!=null) {
+            toolOrder.reorder(source,target,true)
+            refreshToolbar()
+        }
     }
     private fun rememberToolbarOrigins() {
         toolbarDragOrigins.clear()
@@ -268,6 +288,8 @@ class KeyboardView @JvmOverloads constructor(
         }
     }
     private fun toolbarVisible(visible: Boolean) {
+        toolbarTouch.removeCallbacksAndMessages(null)
+        if(toolbarDragId!=null) finishToolbarReorder(false)
         toolbarContainer?.visibility=if(visible) View.VISIBLE else View.GONE
         toolbarScroller?.visibility=if(visible) View.VISIBLE else View.GONE
     }
@@ -287,7 +309,7 @@ class KeyboardView @JvmOverloads constructor(
         setPadding(0, 0, 0, 0)
         setTextColor(palette.text)
         background = palette.pressed(if(palette.style==SurfaceStyle.FLAT) palette.background else palette.surface, context.dp(8).toFloat())
-        layoutParams = LayoutParams(context.dp(40), context.dp(48))
+        layoutParams = LayoutParams(context.dp(40), context.dp(44))
         setOnClickListener { feedback.perform(this); action() }
     }
 
@@ -546,7 +568,7 @@ class KeyboardView @JvmOverloads constructor(
         'ح' to 'خ', 'ط' to 'ظ', 'ض' to 'ث', 'ی' to 'ئ', 'و' to 'ؤ')
     private fun configureGesture(button:GestureKeyButton,key:Key) {
         gestureButtons.add(button)
-        button.tapSlop=android.view.ViewConfiguration.get(context).scaledTouchSlop*(0.75f+options.number("typing_sensitivity")/100f*1.75f)
+        button.tapSlop=android.view.ViewConfiguration.get(context).scaledTouchSlop*(1.1f+options.number("typing_sensitivity")/100f*2.2f)
         if(key==Key.Space && options.enabled("cursor_slide")) button.onMoveCursor={ onKey(Key.Cursor(it)) }
         if(key==Key.Space || key==Key.Language) {
             button.stationaryHoldMillis=1_500L
@@ -561,20 +583,7 @@ class KeyboardView @JvmOverloads constructor(
                 button.enableFlick=options.enabled("flick_symbols")
                 button.flickDistance=context.dp(options.number("flick_sensitivity")).toFloat()
             }
-            if(options.enabled("popup")) button.onPreview={ shown ->
-                keyPopup?.dismiss(); keyPopup=null
-                if(shown && voiceState==VoiceState.IDLE && button.isAttachedToWindow) {
-                    val preview=TextView(context).apply {
-                        text=state.display(key.text); textSize=32f; gravity=Gravity.CENTER
-                        setTextColor(palette.text); background=palette.shape(radius=context.dp(10).toFloat())
-                    }
-                    keyPopup=android.widget.PopupWindow(preview,context.dp(56),context.dp(72),false).apply {
-                        isTouchable=false
-                        try { showAsDropDown(button,(button.width-context.dp(56))/2,-button.height-context.dp(72)) }
-                        catch (_:RuntimeException) { dismiss() }
-                    }
-                }
-            }
+            button.onPreview={ keyPopup?.dismiss(); keyPopup=null }
             if(options.enabled("glide")) {
                 button.onCancel={ glidePath="" }
                 button.onGlideMove={ x,y ->
@@ -785,7 +794,8 @@ class KeyboardView @JvmOverloads constructor(
         var count=4
         if(preferences.numberRow || (state.mode!=KeyboardMode.LETTERS && options.enabled("symbols_number_row"))) count++
         if((state.mode==KeyboardMode.LETTERS && options.enabled("emoji_row")) || (state.mode!=KeyboardMode.LETTERS && options.enabled("symbols_emoji"))) count++
-        val normal=count*(defaultKey+context.dp(6))+context.dp(52)+(if(options.enabled("suggestion_strip")) context.dp(42) else 0)
+        val toolbarHeight=context.dp(44)
+        val normal=count*(defaultKey+context.dp(6))+toolbarHeight+(if(options.enabled("suggestion_strip")) context.dp(42) else 0)
         val system=if(MeasureSpec.getMode(heightMeasureSpec)==MeasureSpec.UNSPECIFIED) Int.MAX_VALUE else (MeasureSpec.getSize(heightMeasureSpec)-paddingTop-paddingBottom).coerceAtLeast(0)
         val area=minOf(normal,system)
         val workspace=panel!=null || writingPanel!=null || recorder.isVisible || emojiPanel!=null
@@ -794,9 +804,10 @@ class KeyboardView @JvmOverloads constructor(
         voiceMessage.layoutParams.height=if(message>0) message else LayoutParams.WRAP_CONTENT
         panel?.layoutParams?.height=(area-message).coerceAtLeast(0)
         recorder.layoutParams.height=(area-message).coerceAtLeast(0)
-        writingPanel?.layoutParams?.height=if(writingKeyboardVisible) context.dp(if(resources.configuration.fontScale>1.2f) 102 else 94) else (area-message).coerceAtLeast(0)
+        val writingEditorHeight=context.dp(if(resources.configuration.fontScale>1.2f) 102 else 94)
+        writingPanel?.layoutParams?.height=if(writingKeyboardVisible) writingEditorHeight else (area-message).coerceAtLeast(0)
         emojiPanel?.layoutParams?.height=if(emojiSearching) context.dp(88) else area
-        val fixed=if(workspace) (if((writingPanel!=null && writingKeyboardVisible) || emojiSearching) context.dp(88) else 0)+message else context.dp(52)+(if(candidateRow.isVisible) context.dp(42) else 0)+(if(title.isVisible) context.dp(28) else 0)+message
+        val fixed=if(workspace) (if(writingPanel!=null && writingKeyboardVisible) writingEditorHeight else if(emojiSearching) context.dp(88) else 0)+message else toolbarHeight+(if(candidateRow.isVisible) context.dp(42) else 0)+(if(title.isVisible) context.dp(28) else 0)+message
         val keyHeight=minOf(defaultKey,((area-fixed)/count-context.dp(6)).coerceAtLeast(context.dp(16)))
         for(i in 0 until rows.childCount) (rows.getChildAt(i) as? LinearLayout)?.let { row ->
             for(j in 0 until row.childCount) if(row.getChildAt(j) is Button) row.getChildAt(j).layoutParams.height=keyHeight

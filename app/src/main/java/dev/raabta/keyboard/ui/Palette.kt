@@ -18,12 +18,11 @@ data class Palette(
     val dark: Boolean = true, val colorful: Boolean = false,
     val style: SurfaceStyle = SurfaceStyle.FLAT,
     val actionStart: Int = accent, val actionEnd: Int = accent,
+    private val iconPalette: List<Int> = emptyList(),
 ) {
     val ripple: Int get() = ColorUtils.setAlphaComponent(accent, 55)
     val onAccent: Int get() = if (ColorUtils.calculateContrast(Color.WHITE, accent) >= 4.5) Color.WHITE else Color.BLACK
-    // Toolbar and tool-grid artwork stays monochrome; the action surface carries the theme accent.
-    @Suppress("UNUSED_PARAMETER")
-    fun icon(index: Int = 0): Int = text
+    fun icon(index: Int = 0): Int = if (iconPalette.isNotEmpty()) iconPalette[index.mod(iconPalette.size)] else text
     fun shape(color: Int = surface, radius: Float = 12f, outlined: Boolean = true): Drawable {
         if (style != SurfaceStyle.FLAT) return ThemeSurfaceDrawable(this, color, radius, outlined)
         return rounded(color, radius).apply { if (outlined) setStroke(1, border) }
@@ -58,9 +57,12 @@ data class Palette(
             KeyboardTheme.LIGHT -> Palette(hex("#F6F7FB"), Color.WHITE, hex("#202331"), hex("#606575"), hex("#2068BD"), hex("#E9EDF5"), hex("#CCD3E1"), hex("#186B80"), false)
             KeyboardTheme.NEON -> Palette(hex("#080E1D"), hex("#131E34"), hex("#EDF8FF"), hex("#AABED4"), hex("#176BB8"), hex("#16263C"), hex("#28506C"), hex("#39C5D9"))
             KeyboardTheme.SPECTRUM -> Palette(hex("#F8FAFC"), Color.WHITE, hex("#202B38"), hex("#596878"), hex("#2068BD"), hex("#EDF2F7"), hex("#CBD5E1"), hex("#147C85"), false, true)
-            KeyboardTheme.GLASS -> Palette(hex("#070E1C"), hex("#111E30"), hex("#F1F6FF"), hex("#B1BFD4"), hex("#1768B8"), hex("#142235"), hex("#528DB7"), hex("#41D7F3"), style=SurfaceStyle.GLASS, actionStart=hex("#1768B8"), actionEnd=hex("#10549C"))
-            KeyboardTheme.CHARCOAL -> Palette(hex("#0D1016"), hex("#191D25"), hex("#F2F3FA"), hex("#ADB3C1"), hex("#2067B0"), hex("#1C2029"), hex("#383E49"), hex("#58A5D8"), style=SurfaceStyle.CHARCOAL, actionStart=hex("#2067B0"), actionEnd=hex("#134D89"))
-            KeyboardTheme.CLOUD -> Palette(hex("#F5F6F8"), hex("#FFFFFF"), hex("#141821"), hex("#556071"), hex("#2468CB"), hex("#FFFFFF"), hex("#E0E4EB"), hex("#287785"), false, true, SurfaceStyle.WHITE, hex("#2468CB"), hex("#1660D0"))
+            KeyboardTheme.GLASS -> Palette(hex("#050B18"), hex("#111D31"), hex("#F4F8FF"), hex("#AAB9D2"), hex("#1988FF"), hex("#111D31"), hex("#4B8BD7"), hex("#37E8FF"), style=SurfaceStyle.GLASS, actionStart=hex("#18B9FF"), actionEnd=hex("#FF57D7"),
+                iconPalette=listOf(hex("#FF7CF4"), hex("#39D9FF"), hex("#2EE6C6"), hex("#FFB85C"), hex("#4EA4FF"), hex("#FF5C9E"), hex("#70C8FF")))
+            KeyboardTheme.CHARCOAL -> Palette(hex("#11141B"), hex("#181C25"), hex("#F5F6FA"), hex("#AEB5C2"), hex("#1D4ED8"), hex("#181C25"), hex("#2B303B"), hex("#43D7F2"), style=SurfaceStyle.CHARCOAL, actionStart=hex("#1D4ED8"), actionEnd=hex("#1E40AF"),
+                iconPalette=listOf(hex("#C77DFF"), hex("#30C9FF"), hex("#2ED8B6"), hex("#FFB257"), hex("#4DA3FF"), hex("#FF4F88"), hex("#DDE4F0")))
+            KeyboardTheme.CLOUD -> Palette(hex("#FAFAFB"), hex("#FFFFFF"), hex("#101722"), hex("#566170"), hex("#0F6FD8"), hex("#FFFFFF"), hex("#E6E9EF"), hex("#2388FF"), false, true, SurfaceStyle.WHITE, hex("#0F6FD8"), hex("#0E5FBD"),
+                iconPalette=listOf(hex("#5B21B6"), hex("#0F5CA8"), hex("#047857"), hex("#303846"), hex("#92400E"), hex("#BE123C"), hex("#1D4ED8")))
             else -> Palette(Color.BLACK, hex("#242428"), hex("#F4F2FA"), hex("#ABA8B5"), hex("#2068BD"), border=hex("#38353F"))
         }
         fun from(context: Context): Palette {

@@ -6,14 +6,18 @@ data class Candidate(val label: String, val text: String, val replace: String = 
 
 /** Small, bounded offline starter dictionary. No model download or text upload. */
 object LocalSuggestions {
-    val words = ("heart hear heard hearing heat health healthy heaven heavy hello help happy happiness birthday birth love lovely good great morning night thanks thank " +
-        "you your yes yesterday no now please people friend friends family fine food coffee tea water " +
-        "home house how hope have has had want welcome world work with will would what where when why " +
-        "is are am was were we they their there this that the them then today tomorrow time talk take " +
-        "can could come call care school sorry smile sad sun sunny rain raining congratulations cat dog " +
-        "beautiful beauty because believe receive really right read write keyboard message meet meeting " +
-        "السلام سلام شکریہ محبت پیار خوش خوشی سالگرہ مبارک صبح رات اچھا آپ میں ہم گھر پانی چائے دوست " +
-        "khushi pyar pyaar mohabbat shukriya salam acha aap mein hum ghar pani chai dost subah raat").split(' ').distinct()
+    val words = ("heart hear heard hearing heat health healthy heaven heavy hello help helpful happy happiness birthday birth love lovely good great morning night thanks thank " +
+        "you your yes yesterday no now new next name need nice note please people person friend friends family fine food coffee tea water " +
+        "home house how hope have has had want welcome world work working with will would what where when why " +
+        "is are am was were we they their there this that the them then today tomorrow time talk take text typing type tool toolbar theme translate translation " +
+        "can could come call care clear clipboard copy copied keyboard message meet meeting market make maybe move movable mobile " +
+        "link line list like light live language learn learned learning later letter left right read write rewrite response replace " +
+        "fast faster fix fixed grammar suggestion suggestions relevant recent old pinned press pressed space enter icon icons settings " +
+        "school sorry smile sad sun sunny rain raining congratulations cat dog beautiful beauty because believe receive really " +
+        "السلام سلام شکریہ محبت پیار خوش خوشی سالگرہ مبارک صبح رات اچھا اچھی آپ میں ہم گھر پانی چائے دوست " +
+        "کیسے ہیں ہے نہیں ہاں کیا کیوں کہاں یہاں وہاں کرنا کرو کام بات زبان اردو انگریزی فون موبائل کیبورڈ مدد سوال جواب " +
+        "khushi pyar pyaar mohabbat shukriya salam acha achi aap mein main hum ghar pani paani chai dost subah raat " +
+        "kaise hain hai nahi haan kya kyun kahan yahan wahan karna karo kaam baat zaban urdu english madad sawal jawab").split(' ').distinct()
     val corrections = mapOf("teh" to "the", "helo" to "hello", "helllo" to "hello", "recieve" to "receive",
         "becuase" to "because", "thnaks" to "thanks", "freind" to "friend", "woudl" to "would", "adn" to "and")
     val grammar = mapOf("i is" to "I am", "you is" to "you are", "we is" to "we are", "they is" to "they are", "he are" to "he is", "she are" to "she is")
@@ -41,7 +45,8 @@ object LocalSuggestions {
             corrections[lower]?.let { result.add(Candidate(it, matchCase(word, it), word)) }
             (dictionary + words).distinct().asSequence().filter { it.startsWith(lower, true) && !it.equals(word, true) }
                 .filter { language != 1 || it.any { c -> c in '\u0600'..'\u06ff' } }
-                .take(4).forEach { result.add(Candidate(it, matchCase(word, it), word)) }
+                .sortedWith(compareBy<String> { priority(lower, it) }.thenBy { kotlin.math.abs(it.length-word.length) }.thenBy { it.length }.thenBy { it.lowercase(Locale.ROOT) })
+                .take(6).forEach { result.add(Candidate(it, matchCase(word, it), word)) }
         }
         if (wordsEnabled && lower.length >= 3 && result.count { !it.emoji } < 2 && language != 1) {
             words.asSequence().filter { it.firstOrNull() == lower.firstOrNull() && kotlin.math.abs(it.length - lower.length) <= 2 }
@@ -57,7 +62,7 @@ object LocalSuggestions {
         }
         if (smartReplies && word.isEmpty() && finished in listOf("hello", "hi", "سلام"))
             listOf("Hello!", "How are you?", "وعلیکم السلام").forEach { result.add(Candidate(it, it)) }
-        return result.distinctBy { it.text }.sortedBy { if(it.emoji) 1 else 0 }.take(8)
+        return result.distinctBy { it.text }.sortedBy { if(it.emoji) 0 else 1 }.take(8)
     }
     private fun distance(a: String, b: String): Int {
         var row = IntArray(b.length + 1) { it }
@@ -69,6 +74,18 @@ object LocalSuggestions {
         return row.last()
     }
     fun matchCase(source: String, value: String) = if (source.firstOrNull()?.isUpperCase() == true) value.replaceFirstChar { it.uppercase() } else value
+    private fun priority(prefix: String, value: String): Int {
+        val common = when (prefix) {
+            "h", "he" -> listOf("heart", "hello", "help", "hear")
+            "li" -> listOf("link", "line", "like", "list")
+            "la" -> listOf("language", "later", "learn")
+            "su" -> listOf("suggestion", "suggestions")
+            "th" -> listOf("the", "theme", "thanks")
+            else -> emptyList()
+        }
+        val index = common.indexOfFirst { it.equals(value, true) }
+        return if (index >= 0) index else 50
+    }
     fun glide(path: String, dictionary: List<String>): String? {
         fun compact(s: String) = s.lowercase(Locale.ROOT).fold("") { acc, c -> if (acc.lastOrNull() == c) acc else acc + c }
         val p = compact(path)

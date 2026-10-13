@@ -1,9 +1,9 @@
 package dev.raabta.keyboard.ui
 
-import android.content.ClipData
+import android.annotation.SuppressLint
 import android.content.Context
-import android.view.DragEvent
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.widget.*
 import androidx.appcompat.content.res.AppCompatResources
@@ -23,6 +23,12 @@ class ToolsPanel @JvmOverloads constructor(
     private val historyButtons = mutableMapOf<String, View>()
     private val tileViews = mutableMapOf<String, View>()
     private val dragOrigins = mutableMapOf<String, Pair<Int, Int>>()
+    private val dragTouch = android.os.Handler(android.os.Looper.getMainLooper())
+    private var dragId: String? = null
+    private var dragTarget: String? = null
+    private var dragStartRawX = 0f
+    private var dragStartRawY = 0f
+    private var dragStartScroll = 0
     private var undoAvailable = false
     private var redoAvailable = false
     private var editing = false
@@ -100,42 +106,17 @@ class ToolsPanel @JvmOverloads constructor(
                     })
                     setOnClickListener { if (!editing) action(tool.command) }
                     setOnLongClickListener { view ->
-                        if (editing) {
-                            rememberOrigins()
-                            view.startDragAndDrop(ClipData.newPlainText("tool",tool.id),View.DragShadowBuilder(view),tool.id,0)
-                        } else {
+                        if (!editing) {
                             PopupMenu(context,view).apply {
                                 menu.add("Move to Toolbar").setOnMenuItemClickListener {
                                     order.move(tool.id,true); changed(); populate(action); true
                                 }
                                 show()
                             }
-                            true
                         }
+                        true
                     }
-                    setOnDragListener { _,event ->
-                        when(event.action) {
-                            DragEvent.ACTION_DRAG_STARTED -> editing && event.localState is String
-                            DragEvent.ACTION_DRAG_ENTERED -> {
-                                (event.localState as? String)?.let { previewOrder(it,tool.id) }; true
-                            }
-                            DragEvent.ACTION_DRAG_LOCATION -> {
-                                val edge = context.dp(32)
-                                val y = row.top + this.top + event.y - scroller.scrollY
-                                when {
-                                    y < edge -> scroller.scrollBy(0, -context.dp(22))
-                                    y > scroller.height - edge -> scroller.scrollBy(0, context.dp(22))
-                                }
-                                true
-                            }
-                            DragEvent.ACTION_DROP -> {
-                                val source=event.localState as? String ?: return@setOnDragListener false
-                                order.reorder(source,tool.id,false); populate(action); true
-                            }
-                            DragEvent.ACTION_DRAG_ENDED -> { resetPreview(); true }
-                            else -> true
-                        }
-                    }
+                    attachGridReorderTouch(this, tool.id)
                 }
                 if(tool.command=="edit:undo" || tool.command=="edit:redo") historyButtons[tool.command]=tile
                 tileViews[tool.id]=tile
@@ -146,6 +127,81 @@ class ToolsPanel @JvmOverloads constructor(
         }
         historyAvailability(undoAvailable,redoAvailable)
         if (previousScroll > 0) scroller.post { scroller.scrollTo(0, previousScroll) }
+    }
+    @SuppressLint("ClickableViewAccessibility")
+    private fun attachGridReorderTouch(tile:View, id:String) {
+        tile.setOnTouchListener { view,event ->
+            if(!editing) return@setOnTouchListener false
+            when(event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    dragTouch.removeCallbacksAndMessages(null)
+                    dragId=null; dragTarget=id; dragStartRawX=event.rawX; dragStartRawY=event.rawY; dragStartScroll=scroller.scrollY
+                    view.isPressed=true
+                    dragTouch.postDelayed({ beginGridReorder(id,view) },800)
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val active=dragId==id
+                    if(!active && (kotlin.math.abs(event.rawX-dragStartRawX)>context.dp(8) || kotlin.math.abs(event.rawY-dragStartRawY)>context.dp(8))) dragTouch.removeCallbacksAndMessages(null)
+                    if(active) updateGridReorder(view,event.rawX,event.rawY)
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    dragTouch.removeCallbacksAndMessages(null)
+                    view.isPressed=false
+                    if(dragId==id) finishGridReorder(true)
+                    else view.performClick()
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    dragTouch.removeCallbacksAndMessages(null)
+                    view.isPressed=false
+                    if(dragId==id) finishGridReorder(false)
+                    true
+                }
+                else -> true
+            }
+        }
+    }
+    private fun beginGridReorder(id:String, view:View) {
+        if(tileViews[id] !== view || !view.isPressed || !editing) return
+        dragId=id; dragTarget=id; rememberOrigins()
+        view.bringToFront(); view.parent?.requestDisallowInterceptTouchEvent(true)
+        view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+    }
+    private fun updateGridReorder(view:View, rawX:Float, rawY:Float) {
+        val source=dragId ?: return
+        view.translationX=rawX-dragStartRawX
+        view.translationY=rawY-dragStartRawY+(scroller.scrollY-dragStartScroll)
+        val scrollerLocation=IntArray(2); scroller.getLocationOnScreen(scrollerLocation)
+        val localY=rawY-scrollerLocation[1]
+        val edge=context.dp(34)
+        when {
+            localY<edge -> scroller.scrollBy(0,-context.dp(18))
+            localY>scroller.height-edge -> scroller.scrollBy(0,context.dp(18))
+        }
+        val target=tileViews.minByOrNull { (_,tile) ->
+            val location=IntArray(2); tile.getLocationOnScreen(location)
+            val centerX=location[0]+tile.width/2f
+            val centerY=location[1]+tile.height/2f
+            kotlin.math.abs(rawX-centerX)+kotlin.math.abs(rawY-centerY)
+        }?.key ?: source
+        if(target!=dragTarget) {
+            dragTarget=target
+            previewOrder(source,target)
+        }
+    }
+    private fun finishGridReorder(commit:Boolean) {
+        val source=dragId
+        val target=dragTarget
+        resetPreview()
+        tileViews.values.forEach { it.parent?.requestDisallowInterceptTouchEvent(false) }
+        dragId=null; dragTarget=null
+        if(commit && source!=null && target!=null) {
+            order.reorder(source,target,false)
+            changed()
+            populate(toolAction)
+        }
     }
     private fun rememberOrigins() {
         dragOrigins.clear()

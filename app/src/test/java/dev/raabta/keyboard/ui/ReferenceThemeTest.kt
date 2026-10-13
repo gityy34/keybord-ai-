@@ -65,21 +65,21 @@ class ReferenceThemeTest {
             assertTrue(ThemePicker(context).findViewWithTag<View>("choice:Theme:${theme.ordinal}").isSelected)
         }
     }
-    @Test fun newSurfacesKeepReadableTextAndMonochromeToolbarIcons() {
+    @Test fun newSurfacesKeepReadableTextAndReferenceStyledToolbarIcons() {
         for(theme in themes) {
             val colors = Palette.forTheme(theme)
             assertNotEquals(SurfaceStyle.FLAT, colors.style)
             for(surface in listOf(colors.background, colors.surface, colors.key)) assertTrue("$theme text contrast", ColorUtils.calculateContrast(colors.text, surface) >= 4.5)
             assertTrue(ColorUtils.calculateContrast(colors.onAccent, colors.accent) >= 4.5)
             for(stop in listOf(colors.actionStart, colors.actionEnd)) assertTrue("$theme action contrast", ColorUtils.calculateContrast(colors.onAccent, stop) >= 4.5)
-            assertEquals(listOf(colors.text), (0..6).map(colors::icon).distinct())
+            assertTrue((0..6).map(colors::icon).distinct().size >= 4)
             for(index in 0..6) assertTrue("$theme icon $index", ColorUtils.calculateContrast(colors.icon(index), colors.surface) >= 3.0)
             assertTrue(colors.shape() is ThemeSurfaceDrawable)
         }
         assertEquals(SurfaceStyle.FLAT, Palette.forTheme(KeyboardTheme.NEON).style)
     }
     @Test fun builtInThemesUseMonochromeIconsAndBlueEnterActions() {
-        for (theme in KeyboardTheme.entries.filter { it != KeyboardTheme.CUSTOM && it != KeyboardTheme.SYSTEM }) {
+        for (theme in KeyboardTheme.entries.filter { it !in listOf(KeyboardTheme.CUSTOM, KeyboardTheme.SYSTEM, KeyboardTheme.GLASS, KeyboardTheme.CHARCOAL, KeyboardTheme.CLOUD) }) {
             val colors = Palette.forTheme(theme)
             assertEquals("$theme toolbar icon", colors.text, colors.icon(2))
             assertTrue("$theme icon contrast", ColorUtils.calculateContrast(colors.icon(2), colors.background) >= 4.5)
