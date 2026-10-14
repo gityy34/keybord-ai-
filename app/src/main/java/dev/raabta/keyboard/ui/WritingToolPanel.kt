@@ -44,7 +44,7 @@ class WritingToolPanel @JvmOverloads constructor(
     private var hasResults=false
     private val progress=ProgressBar(context,null,android.R.attr.progressBarStyleHorizontal).apply { isIndeterminate=true; visibility=GONE; tag="ToolProgress"; indeterminateTintList=ColorStateList.valueOf(palette.accent) }
     init {
-        orientation=VERTICAL; tag="WritingTool"; setPadding(context.dp(7),0,context.dp(7),context.dp(6)); setBackgroundColor(palette.background)
+        orientation=VERTICAL; tag="WritingTool"; setPadding(context.dp(7),0,context.dp(7),context.dp(6)); background = palette.backgroundDrawable()
         header.addView(ToolbarButton(context).apply {
             text="‹"; tag="tool:writing:close"; contentDescription="Back to keyboard"; style(this); setOnClickListener { command("writing:close") }
         },LayoutParams(context.dp(48),context.dp(48)))

@@ -20,8 +20,11 @@ class KeyboardSettingsActivity:Activity() {
     override fun onCreate(state:Bundle?) {
         setTheme(if(Palette.isDark(this)) dev.raabta.keyboard.R.style.AppTheme_Dark else dev.raabta.keyboard.R.style.AppTheme)
         super.onCreate(state)
-        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
-        page=state?.getString("page") ?: "Raabta settings"
+        page=state?.getString("page") ?: intent.getStringExtra("page") ?: "Raabta settings"
+        window.setSoftInputMode(if (page == "Search") {
+            android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
+        } else android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
         showPage(page)
         if(android.os.Build.VERSION.SDK_INT>=33) onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { back() }
     }
@@ -30,6 +33,14 @@ class KeyboardSettingsActivity:Activity() {
         if(value=="Connections") { startActivity(Intent(this,AiConnectionActivity::class.java)); return }
         val scroll=if(value==page) findViewById<android.view.View>(android.R.id.content)?.findViewWithTag<android.widget.ScrollView>("SettingsScroll")?.scrollY ?: 0 else 0
         page=value
+        window.setSoftInputMode(if (page == "Search") {
+            android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
+        } else android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
+        if (page != "Search") {
+            (getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                ?.hideSoftInputFromWindow(window.decorView.windowToken, 0)
+        }
         val palette=Palette.from(this); palette.applySystemBars(window)
         @Suppress("DEPRECATION")
         window.statusBarColor=palette.background

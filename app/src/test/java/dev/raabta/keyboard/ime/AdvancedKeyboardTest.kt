@@ -15,6 +15,7 @@ import android.view.inputmethod.ExtractedText
 import android.view.inputmethod.ExtractedTextRequest
 import android.widget.EditText
 import android.widget.Switch
+import android.widget.SeekBar
 import dev.raabta.keyboard.ui.KeyboardOptions
 import dev.raabta.keyboard.setup.OptionalPermissionActivity
 import org.junit.*
@@ -203,16 +204,29 @@ class AdvancedKeyboardTest {
         assertTrue(view.findViewWithTag<View>("text:ا").performLongClick())
         assertEquals("اذآ",field.text.toString())
     }
-    @Test fun toolboxIncludesEditingAndFloatingControls() {
+    @Test fun toolboxIncludesEditingFloatingResetAndRemovesRequestedShortcuts() {
         click("Tools")
         assertNotNull(view.findViewWithTag<View>("settings:Text editing"))
         assertNotNull(view.findViewWithTag<View>("settings:Floating"))
+        assertNotNull(view.findViewWithTag<View>("ToolsReset"))
+        assertNull(view.findViewWithTag<View>("settings:Roman Urdu → Urdu"))
+        assertNull(view.findViewWithTag<View>("settings:Share"))
         click("settings:Text editing")
         assertNull(shadowOf(service).nextStartedActivity)
         assertEquals("",field.text.toString())
     }
-    @Test fun offlineGlideRecognisesDictionaryPathsAndRejectsUnknownPaths() {
+    @Test fun resizeToolOpensLiveScaleControlAndPersistsScale() {
+        click("Tools"); click("settings:Resize")
+        val slider=view.findViewWithTag<SeekBar>("ResizeSlider")
+        assertNotNull(slider)
+        slider.progress=60
+        assertEquals(135,KeyboardOptions(service).number("height_scale"))
+        click("ResizeDone")
+        assertNull(view.findViewWithTag<View>("ResizePanel"))
+    }
+    @Test fun offlineGlideRanksDictionaryPathsAndRejectsUnknownPaths() {
         assertEquals("hello",LocalSuggestions.glide("helo",emptyList()))
+        assertTrue(LocalSuggestions.glideCandidates("hlo",emptyList()).map { it.text }.contains("hello"))
         assertNull(LocalSuggestions.glide("qxz",emptyList()))
     }
 

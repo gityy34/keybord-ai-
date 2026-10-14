@@ -16,9 +16,10 @@ class VoicePanel @JvmOverloads constructor(context: Context, stop: () -> Unit = 
     val timer=TextView(context).apply { tag="VoiceTimer"; textSize=13f; setTextColor(palette.muted); gravity=Gravity.END }
     val level=VoiceLevelView(context)
     val transcript=TextView(context).apply { tag="VoiceTranscript"; textSize=16f; setTextColor(palette.text); setPadding(context.dp(12),context.dp(8),context.dp(12),context.dp(8)); textDirection=View.TEXT_DIRECTION_FIRST_STRONG }
+    val translation=TextView(context).apply { tag="VoiceTranslation"; textSize=15f; setTextColor(palette.text); setPadding(context.dp(12),context.dp(6),context.dp(12),context.dp(6)); visibility=GONE; textDirection=View.TEXT_DIRECTION_FIRST_STRONG }
     private val languages=LinearLayout(context).apply { isBaselineAligned=false; tag="VoiceLanguages" }
     init {
-        orientation=VERTICAL; tag="VoiceRecorder"; setPadding(context.dp(8),0,context.dp(8),context.dp(6)); setBackgroundColor(palette.background)
+        orientation=VERTICAL; tag="VoiceRecorder"; setPadding(context.dp(8),0,context.dp(8),context.dp(6)); background = palette.backgroundDrawable()
         val header=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL }
         fun icon(value:String,tagValue:String,description:String,action:()->Unit)=ToolbarButton(context).apply {
             text=value; tag=tagValue; contentDescription=description; setTextColor(palette.text)
@@ -26,19 +27,32 @@ class VoicePanel @JvmOverloads constructor(context: Context, stop: () -> Unit = 
         }
         header.addView(icon("‹","VoiceDismiss","Cancel and return to keyboard",cancel),LayoutParams(context.dp(48),context.dp(48)))
         header.addView(TextView(context).apply { setText(dev.raabta.keyboard.R.string.voice_title); textSize=18f; setTextColor(palette.text) },LayoutParams(0,LayoutParams.WRAP_CONTENT,1f))
+        header.addView(timer,LayoutParams(context.dp(54),context.dp(40)))
+        header.addView(icon("⇄","VoiceTranslate","Choose a translation target") {
+            PopupMenu(context, translation).apply {
+                menu.add("Translate to English").setOnMenuItemClickListener { command("voice:translate-target:en"); true }
+                menu.add("Translate to Urdu").setOnMenuItemClickListener { command("voice:translate-target:ur"); true }
+                show()
+            }
+        },LayoutParams(context.dp(44),context.dp(44)))
+        header.addView(icon("■","VoiceStop","Stop listening") { stop() }.apply {
+            setTextColor(palette.onAccent)
+            background=palette.pressed(palette.accent,context.dp(22).toFloat())
+        },LayoutParams(context.dp(44),context.dp(44)))
         header.addView(icon("⌫","VoiceDelete","Delete voice draft or unchanged last transcription") { command("voice:delete") },LayoutParams(context.dp(48),context.dp(48)))
         addView(header)
         addView(languages,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(44)))
         val state=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL; setPadding(context.dp(6),0,context.dp(6),0) }
-        state.addView(status,LayoutParams(0,context.dp(28),1f)); state.addView(timer,LayoutParams(context.dp(54),context.dp(28))); addView(state)
+        state.addView(status,LayoutParams(0,context.dp(28),1f)); addView(state)
         addView(level,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(56)))
         addView(ScrollView(context).apply { addView(transcript); background=palette.shape(radius=context.dp(12).toFloat()) },LayoutParams(LayoutParams.MATCH_PARENT,0,1f))
+        addView(translation,LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.WRAP_CONTENT))
         val actions=LinearLayout(context).apply { gravity=Gravity.CENTER; isBaselineAligned=false }
         fun button(label:String,tagValue:String,action:()->Unit)=KeyButton(context).apply {
             text=label; tag=tagValue; textSize=14f; fitLabel(14f); setTextColor(palette.onAccent)
             background=palette.pressed(palette.accent,context.dp(12).toFloat()); setOnClickListener { action() }
         }
-        actions.addView(button(context.getString(dev.raabta.keyboard.R.string.voice_stop_short),"VoiceStop",stop).apply { contentDescription=context.getString(dev.raabta.keyboard.R.string.voice_stop) },LayoutParams(0,context.dp(46),1f).apply { topMargin=context.dp(6) })
+        actions.addView(button(context.getString(dev.raabta.keyboard.R.string.voice_stop_short),"VoiceStopBottom",stop).apply { contentDescription=context.getString(dev.raabta.keyboard.R.string.voice_stop); visibility=GONE },LayoutParams(0,context.dp(46),1f).apply { topMargin=context.dp(6) })
         actions.addView(button(context.getString(dev.raabta.keyboard.R.string.voice_retry),"VoiceRetry") { command("voice:retry") }.apply { visibility=GONE },LayoutParams(0,context.dp(46),1f).apply { topMargin=context.dp(6) })
         addView(actions)
         language(VoiceSettings.language(context),command)
@@ -59,5 +73,9 @@ class VoicePanel @JvmOverloads constructor(context: Context, stop: () -> Unit = 
                 if(value in defaults.map { it.first }) setOnClickListener { command("voice-language:$value") } else isClickable=false
             },LayoutParams(0,context.dp(40),1f).apply { setMargins(context.dp(2),0,context.dp(2),0) })
         }
+    }
+    fun showTranslation(value:String) {
+        translation.text=value
+        translation.visibility=if(value.isBlank()) GONE else VISIBLE
     }
 }

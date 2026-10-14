@@ -20,6 +20,8 @@ class GestureKeyButton(context:Context) : KeyButton(context) {
     var holdDuration=400L
     var flickDistance=24f * resources.displayMetrics.density
     var enableFlick=false
+    // Keep the gesture threshold close to the platform touch slop. A large threshold
+    // makes quick adjacent taps look like one gesture and drops keys.
     var tapSlop=ViewConfiguration.get(context).scaledTouchSlop.toFloat()
     private val handler=Handler(Looper.getMainLooper())
     private var x=0f; private var y=0f; private var lastX=0f

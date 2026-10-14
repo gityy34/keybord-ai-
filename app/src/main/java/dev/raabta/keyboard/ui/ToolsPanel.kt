@@ -29,6 +29,8 @@ class ToolsPanel @JvmOverloads constructor(
     private var dragStartRawX = 0f
     private var dragStartRawY = 0f
     private var dragStartScroll = 0
+    private var dragGrabOffsetX = 0f
+    private var dragGrabOffsetY = 0f
     private var undoAvailable = false
     private var redoAvailable = false
     private var editing = false
@@ -36,13 +38,24 @@ class ToolsPanel @JvmOverloads constructor(
     private lateinit var scroller: ScrollView
     private val toolAction = action
     init {
-        orientation = VERTICAL; tag = "SettingsPanel"; setBackgroundColor(palette.background)
+        orientation = VERTICAL; tag = "SettingsPanel"; background = palette.backgroundDrawable()
         val heading = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
         heading.addView(ToolbarButton(context).apply {
             text = "‹"; tag = "SettingsBack"; contentDescription = "Back to keyboard"
             setTextColor(palette.text); background = palette.pressed(radius=context.dp(10).toFloat()); setOnClickListener { back() }
         }, LayoutParams(context.dp(48),context.dp(48)))
         heading.addView(TextView(context).apply { setText(R.string.tools_menu_title); textSize=18f; setTextColor(palette.text) },LayoutParams(0,LayoutParams.WRAP_CONTENT,1f))
+        val resetButton = ToolbarButton(context).apply {
+            text = "↺"; tag = "ToolsReset"; contentDescription = "Reset tool layout"
+            setTextColor(palette.text); background = palette.toolbarBackground(0, false, context.dp(10).toFloat())
+            setOnClickListener { toolAction("tools:reset") }
+        }
+        heading.addView(resetButton, LayoutParams(context.dp(44), context.dp(48)))
+        heading.addView(ToolbarButton(context).apply {
+            text = "⌕"; tag = "ToolsSearch"; contentDescription = "Search settings"
+            setTextColor(palette.text); background = palette.toolbarBackground(0, false, context.dp(10).toFloat())
+            setOnClickListener { toolAction("settings:search") }
+        }, LayoutParams(context.dp(44), context.dp(48)))
         editButton = ToolbarButton(context).apply {
             text = "✎"; tag = "ToolsEdit"; contentDescription = "Edit tool order"
             setTextColor(palette.text)
@@ -57,7 +70,23 @@ class ToolsPanel @JvmOverloads constructor(
         }
         heading.addView(editButton, LayoutParams(context.dp(48), context.dp(48)))
         addView(heading)
-        grid.apply { orientation=VERTICAL; setPadding(context.dp(6),0,context.dp(6),context.dp(6)); tag="ToolsGrid" }
+        val toolbarPreview = HorizontalScrollView(context).apply {
+            tag = "ToolbarPreview"
+            isHorizontalScrollBarEnabled = false
+            addView(LinearLayout(context).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                order.toolbar().forEachIndexed { index, tool ->
+                    addView(ToolbarButton(context).apply {
+                        text = tool.glyph; tag = "ToolbarPreview:${tool.id}"; caption = null
+                        contentDescription = tool.label; setTextColor(palette.icon(index))
+                        background = palette.toolbarBackground(index, false, context.dp(9).toFloat())
+                        setOnClickListener { if (!editing) action(tool.command) }
+                    }, LayoutParams(context.dp(44), context.dp(42)).apply { setMargins(context.dp(2), 0, context.dp(2), 0) })
+                }
+            })
+        }
+        addView(toolbarPreview, LayoutParams(LayoutParams.MATCH_PARENT, context.dp(44)))
+        grid.apply { orientation=VERTICAL; clipChildren=false; setPadding(context.dp(6),0,context.dp(6),context.dp(6)); tag="ToolsGrid" }
         scroller = ScrollView(context).apply { tag="ToolsScroll"; addView(grid) }
         addView(scroller,LayoutParams(LayoutParams.MATCH_PARENT,0,1f))
         populate(action)
@@ -72,8 +101,7 @@ class ToolsPanel @JvmOverloads constructor(
         "Emoji", "Stickers / GIFs" -> R.drawable.ic_emoji
         "Resize", "One-handed" -> R.drawable.ic_resize
         "Connections" -> R.drawable.ic_connection
-        "Roman Urdu → Urdu", "Translation" -> R.drawable.ic_translate
-        "Share" -> R.drawable.ic_share
+        "Translation" -> R.drawable.ic_translate
         "Floating" -> R.drawable.ic_keyboard
         "Tone" -> R.drawable.ic_tone
         "Rewrite" -> R.drawable.ic_rewrite
@@ -85,12 +113,13 @@ class ToolsPanel @JvmOverloads constructor(
         val previousScroll = if (::scroller.isInitialized) scroller.scrollY else 0
         grid.removeAllViews(); historyButtons.clear(); tileViews.clear(); dragOrigins.clear()
         order.more().chunked(3).forEachIndexed { rowIndex, tools ->
-            val row=LinearLayout(context).apply { isBaselineAligned=false; tag="ToolRow:$rowIndex" }
+            val row=LinearLayout(context).apply { isBaselineAligned=false; clipChildren=false; tag="ToolRow:$rowIndex" }
             tools.forEachIndexed { column,tool ->
                 val tile=LinearLayout(context).apply {
                     orientation=VERTICAL; gravity=Gravity.CENTER; isClickable=true; isFocusable=true
                     tag="settings:${tool.id}"; contentDescription=tool.label
                     background=palette.pressed(if (editing) palette.surface else palette.background, context.dp(12).toFloat())
+                    scaleX=if(editing) 0.98f else 1f; scaleY=if(editing) 0.98f else 1f
                     addView(ImageView(context).apply {
                         setImageDrawable(AppCompatResources.getDrawable(context,icon(tool)))
                         imageTintList=android.content.res.ColorStateList.valueOf(palette.icon(rowIndex*3+column))
@@ -136,6 +165,8 @@ class ToolsPanel @JvmOverloads constructor(
                 MotionEvent.ACTION_DOWN -> {
                     dragTouch.removeCallbacksAndMessages(null)
                     dragId=null; dragTarget=id; dragStartRawX=event.rawX; dragStartRawY=event.rawY; dragStartScroll=scroller.scrollY
+                    val location=IntArray(2); view.getLocationOnScreen(location)
+                    dragGrabOffsetX=event.rawX-location[0]; dragGrabOffsetY=event.rawY-location[1]
                     view.isPressed=true
                     dragTouch.postDelayed({ beginGridReorder(id,view) },800)
                     true
@@ -166,13 +197,20 @@ class ToolsPanel @JvmOverloads constructor(
     private fun beginGridReorder(id:String, view:View) {
         if(tileViews[id] !== view || !view.isPressed || !editing) return
         dragId=id; dragTarget=id; rememberOrigins()
-        view.bringToFront(); view.parent?.requestDisallowInterceptTouchEvent(true)
+        // Keep the tile in its row. bringToFront() reorders the row's children and
+        // caused tiles to vanish or jump while the grid was being rearranged.
+        view.elevation=context.dp(6).toFloat(); view.alpha=0.92f
+        view.parent?.requestDisallowInterceptTouchEvent(true)
         view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
     }
     private fun updateGridReorder(view:View, rawX:Float, rawY:Float) {
         val source=dragId ?: return
-        view.translationX=rawX-dragStartRawX
-        view.translationY=rawY-dragStartRawY+(scroller.scrollY-dragStartScroll)
+        val origin=dragOrigins[source] ?: return
+        val scrollDelta=scroller.scrollY-dragStartScroll
+        // Preserve the point where the finger grabbed the tile. This prevents a
+        // visible jump on the first move and keeps the tile directly under it.
+        view.translationX=rawX-dragGrabOffsetX-origin.first
+        view.translationY=rawY-dragGrabOffsetY-origin.second+scrollDelta
         val scrollerLocation=IntArray(2); scroller.getLocationOnScreen(scrollerLocation)
         val localY=rawY-scrollerLocation[1]
         val edge=context.dp(34)
@@ -180,10 +218,11 @@ class ToolsPanel @JvmOverloads constructor(
             localY<edge -> scroller.scrollBy(0,-context.dp(18))
             localY>scroller.height-edge -> scroller.scrollBy(0,context.dp(18))
         }
-        val target=tileViews.minByOrNull { (_,tile) ->
-            val location=IntArray(2); tile.getLocationOnScreen(location)
-            val centerX=location[0]+tile.width/2f
-            val centerY=location[1]+tile.height/2f
+        val target=tileViews.minByOrNull { (id,tile) ->
+            val location=dragOrigins[id]
+            if (location==null) return@minByOrNull Float.MAX_VALUE
+            val centerX=location.first+tile.width/2f
+            val centerY=location.second+tile.height/2f-scrollDelta
             kotlin.math.abs(rawX-centerX)+kotlin.math.abs(rawY-centerY)
         }?.key ?: source
         if(target!=dragTarget) {
@@ -195,7 +234,10 @@ class ToolsPanel @JvmOverloads constructor(
         val source=dragId
         val target=dragTarget
         resetPreview()
-        tileViews.values.forEach { it.parent?.requestDisallowInterceptTouchEvent(false) }
+        tileViews.values.forEach {
+            it.translationX=0f; it.translationY=0f; it.elevation=0f; it.alpha=1f
+            it.parent?.requestDisallowInterceptTouchEvent(false)
+        }
         dragId=null; dragTarget=null
         if(commit && source!=null && target!=null) {
             order.reorder(source,target,false)
@@ -222,12 +264,15 @@ class ToolsPanel @JvmOverloads constructor(
             }
             val here=dragOrigins[id] ?: return@forEachIndexed
             val there=dragOrigins[destination] ?: return@forEachIndexed
-            tileViews[id]?.animate()?.translationX((there.first-here.first).toFloat())
-                ?.translationY((there.second-here.second).toFloat())?.setDuration(85)?.start()
+            tileViews[id]?.apply {
+                if (id==source) return@apply
+                translationX = (there.first-here.first).toFloat()
+                translationY = (there.second-here.second).toFloat()
+            }
         }
     }
     private fun resetPreview() {
-        tileViews.values.forEach { it.animate().translationX(0f).translationY(0f).setDuration(100).start() }
+        tileViews.values.forEach { it.translationX=0f; it.translationY=0f; it.elevation=0f; it.alpha=1f }
         dragOrigins.clear()
     }
     fun historyAvailability(undo: Boolean, redo: Boolean) {

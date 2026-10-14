@@ -37,11 +37,11 @@ class KeyboardOptions(context: Context) {
             "auto_correction" to false, "spell_check" to false, "grammar_check" to false,
             "contacts" to false, "smart_replies" to false, "emoji_row" to false,
             "symbols_emoji" to false, "clipboard_suggestions" to true, "clipboard_items" to false,
-            "screenshots" to false, "glide" to false, "app_icon" to true, "symbols_number_row" to true, "floating" to false,
+            "screenshots" to false, "glide" to true, "app_icon" to true, "symbols_number_row" to true, "floating" to false,
         )
         val numbers = mapOf("font_size" to (22 to 16..32), "emoji_size" to (26 to 18..40),
             "hold_duration" to (400 to 200..800), "flick_sensitivity" to (24 to 12..48),
             "sound_volume" to (50 to 0..100), "vibration_strength" to (40 to 1..100),
-            "typing_sensitivity" to (80 to 0..100), "suggestion_delay" to (16 to 0..200), "suggestion_count" to (3 to 2..4), "language" to (0 to 0..2), "one_handed" to (0 to 0..2))
+            "typing_sensitivity" to (80 to 0..100), "suggestion_delay" to (8 to 0..200), "suggestion_count" to (3 to 2..4), "language" to (0 to 0..2), "one_handed" to (0 to 0..2), "height_scale" to (100 to 75..135))
     }
 }

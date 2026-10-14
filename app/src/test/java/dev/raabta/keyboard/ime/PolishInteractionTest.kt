@@ -84,7 +84,7 @@ class PolishInteractionTest {
         assertEquals("before spoken",field.text.toString()); click("VoiceDelete")
         assertEquals("before ",field.text.toString()); assertEquals(7,field.selectionStart)
         assertEquals("",view.findViewWithTag<TextView>("VoiceTranscript").text.toString())
-        assertEquals(View.GONE,view.findViewWithTag<View>("VoiceRecorder").visibility)
+        assertEquals(View.VISIBLE,view.findViewWithTag<View>("VoiceRecorder").visibility)
     }
     @Test fun cancelDropsVoiceDraftButDeleteNeverOverwritesLaterHostChanges() {
         val events=voice(); events.partial("accidental"); click("VoiceDismiss"); events.result("late")

@@ -50,14 +50,15 @@ class WritingAndLearningTest {
     private fun type(text:String) { text.forEach { click(if(it==' ') "Space" else "text:$it") } }
     private fun update() { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(30)) }
     private fun toolbox(name:String) { click("Tools"); click("settings:$name") }
-    @Test fun suggestionsHaveEqualWidthsAndBestCompletionInCentre() {
+    @Test fun suggestionsHaveEqualWidthsAndTypedWordFirst() {
         type("he"); update()
         val strip=view.findViewWithTag<LinearLayout>("SuggestionStrip")
         view.measure(View.MeasureSpec.makeMeasureSpec(360,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(1000,View.MeasureSpec.AT_MOST)); view.layout(0,0,view.measuredWidth,view.measuredHeight)
         val visible=(0 until strip.childCount).map { strip.getChildAt(it) }.filter { it.visibility==View.VISIBLE }
         assertEquals(3,visible.size)
         assertTrue(visible.all { kotlin.math.abs(it.width-visible.first().width)<=1 })
-        assertEquals("suggestion:heart",visible[1].tag)
+        assertEquals("suggestion:he",visible[0].tag)
+        assertTrue(visible.drop(1).any { it.tag=="suggestion:heart" })
     }
     @Test fun singleEmojiSuggestionUsesFullWidthAndIsCentred() {
         type("love"); update()
@@ -145,7 +146,7 @@ class WritingAndLearningTest {
         assertEquals("new content",field.text.toString())
     }
     @Test fun romanToolDraftDoesNotEditAppUntilInsert() {
-        toolbox("Roman Urdu → Urdu"); type("aap kaise hain")
+        view.showSettings("Writing tools"); click("settings:Convert Roman Urdu"); type("aap kaise hain")
         assertEquals("",field.text.toString()); click("tool:writing:run")
         assertEquals("آپ کیسے ہیں",view.findViewWithTag<TextView>("ResultText:0").text.toString())
         click("tool:writing:replace:0"); assertEquals("آپ کیسے ہیں",field.text.toString())
@@ -201,7 +202,7 @@ class WritingAndLearningTest {
         assertEquals("",field.text.toString())
     }
     @Test fun writingResultRejectsChangedCaretAndLargeSelections() {
-        connection.commitText("existing",1); toolbox("Roman Urdu → Urdu"); type("hai"); click("tool:writing:run")
+        connection.commitText("existing",1); view.showSettings("Writing tools"); click("settings:Convert Roman Urdu"); type("hai"); click("tool:writing:run")
         field.setSelection(0); click("tool:writing:replace:0"); assertEquals("existing",field.text.toString())
         field.setText("a".repeat(2001)); field.selectAll(); click("tool:writing:selection")
         assertTrue(view.findViewWithTag<TextView>("ToolStatus").text.contains("2,000"))

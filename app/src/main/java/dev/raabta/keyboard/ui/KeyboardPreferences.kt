@@ -19,6 +19,7 @@ data class KeyboardPreferences(
     val sound: Boolean = false,
     val holdDelayMillis: Long = 400,
     val repeatMillis: Long = 55,
+    val keyBorders: Boolean = true,
 ) {
     companion object {
         private fun store(context: Context) = context.getSharedPreferences("keyboard_preferences", Context.MODE_PRIVATE)
@@ -29,12 +30,14 @@ data class KeyboardPreferences(
             val height = KeyboardHeight.entries.firstOrNull { it.name == preferences.getString("height", null) } ?: KeyboardHeight.NORMAL
             return KeyboardPreferences(theme, height, preferences.getBoolean("number_row", false),
                 preferences.getBoolean("vibration", true), preferences.getBoolean("sound", false),
-                preferences.getLong("hold_delay", 400).coerceIn(200, 800), preferences.getLong("repeat_interval", 55).coerceIn(40, 150))
+                preferences.getLong("hold_delay", 400).coerceIn(200, 800), preferences.getLong("repeat_interval", 55).coerceIn(40, 150),
+                preferences.getBoolean("key_borders", true))
         }
 
         fun save(context: Context, preferences: KeyboardPreferences) {
             store(context).edit { putString("theme", preferences.theme.name).putString("height", preferences.height.name)
-                .putBoolean("number_row", preferences.numberRow).putBoolean("vibration", preferences.vibration)
+                .putBoolean("number_row", preferences.numberRow).putBoolean("key_borders", preferences.keyBorders)
+                .putBoolean("vibration", preferences.vibration)
                 .putBoolean("sound", preferences.sound)
                 .putLong("hold_delay", preferences.holdDelayMillis.coerceIn(200, 800))
                 .putLong("repeat_interval", preferences.repeatMillis.coerceIn(40, 150)) }

@@ -81,6 +81,7 @@
     <string name="key_space">Space</string>
     <string name="key_delete">Backspace</string>
     <string name="key_shift">Shift</string>
+    <string name="key_shift_short">SFT</string>
     <string name="key_caps">Caps Lock</string>
     <string name="key_enter">Enter</string>
     <string name="key_go">Go</string>
@@ -122,8 +123,9 @@
     <string name="connection_summary">Active AI provider: %1$s\nSaved provider: %2$s\nCurrent model: %3$s\nConnection type: HTTPS · Key / backend\nStatus: %4$s\nKey: %5$s</string>
     <string name="connection_no_browser">Open console.groq.com/keys in your browser to create your own developer key.</string>
     <string name="tools_menu_title">Tools</string>
-    <string name="theme_import_title">Import theme</string>
-    <string name="theme_import_help">Import a local Raabta colour theme (.json). Your existing themes remain available.</string>
     <string name="menu_choice_selected">%1$s ✓</string>
     <string name="voice_starting">Starting microphone…</string>
+    <string name="resize_keyboard">Resize keyboard</string>
+    <string name="settings_search_empty">No matching settings</string>
+    <string name="voice_ready">Ready</string>
 </resources>

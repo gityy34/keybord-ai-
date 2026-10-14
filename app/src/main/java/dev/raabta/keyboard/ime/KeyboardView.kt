@@ -12,9 +12,11 @@ import android.view.WindowInsets
 import android.os.Build
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.ScrollView
 import android.widget.PopupMenu
+import android.widget.SeekBar
 import android.view.MotionEvent
 import dev.raabta.keyboard.ui.KeyboardOptions
 import dev.raabta.keyboard.ui.KeyboardSettingsPanel
@@ -71,6 +73,7 @@ class KeyboardView @JvmOverloads constructor(
     private var glidePath = ""
     private var header: LinearLayout? = null
     private var toolbarScroller: android.widget.HorizontalScrollView? = null
+    private var toolbarCenter: FrameLayout? = null
     private var toolbarContainer: View? = null
     private val toolbarButtons=mutableMapOf<String,Button>()
     private val toolOrder=ToolOrder(context)
@@ -80,6 +83,7 @@ class KeyboardView @JvmOverloads constructor(
     private var toolbarDragTarget: String? = null
     private var toolbarDragStartRawX = 0f
     private var toolbarDragStartScroll = 0
+    private var toolbarGrabOffsetX = 0f
     private var keyPopup: android.widget.PopupWindow? = null
     val floating get() = options.enabled("floating") && settingsPage.isEmpty()
     fun contentBounds():android.graphics.Rect {
@@ -119,19 +123,23 @@ class KeyboardView @JvmOverloads constructor(
     private var emojiSearching=false
     private var emojiQuery=""
     private var clipboardPinnedOnly=false
+    private var resizeOriginalScale=options.number("height_scale")
+    private var typingActive=false
 
     init {
         orientation = VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
         layoutDirection = View.LAYOUT_DIRECTION_LTR
-        setBackgroundColor(palette.background)
-        setPadding(context.dp(3), context.dp(3), context.dp(3), context.dp(5))
+        background = palette.backgroundDrawable()
+        // Keep a small, stable breathing room above the system navigation bar.  The
+        // insets listener below adds the device-specific navigation inset on top of it.
+        setPadding(context.dp(3), context.dp(3), context.dp(3), context.dp(8))
         content.orientation = VERTICAL
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         setOnApplyWindowInsetsListener { _, insets ->
             val bottom = if (Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.navigationBars()).bottom
             else { @Suppress("DEPRECATION") insets.systemWindowInsetBottom }
-            setPadding(context.dp(3), context.dp(3), context.dp(3), context.dp(5) + bottom)
+            setPadding(context.dp(3), context.dp(3), context.dp(3), context.dp(8) + bottom)
             insets
         }
         val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; isBaselineAligned=false }
@@ -149,21 +157,32 @@ class KeyboardView @JvmOverloads constructor(
         title.visibility=if(options.enabled("floating")) View.VISIBLE else View.GONE
         content.addView(title,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(28)))
         toolbarScroller=android.widget.HorizontalScrollView(context).apply { tag="KeyboardToolbar"; isHorizontalScrollBarEnabled=false; addView(header) }
+        val center = FrameLayout(context).apply {
+            tag = "ToolbarCenter"
+            clipChildren = false
+            clipToPadding = false
+        }
+        toolbarCenter = center
+        center.addView(toolbarScroller, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, context.dp(44)))
         val toolbarRow=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL }
         toolbarContainer=toolbarRow
-        toolbarRow.addView(toolbarScroller,LayoutParams(0,context.dp(44),1f))
         val more=headerButton("▦",R.string.keyboard_title) { onTool("tools") }.apply {
-            tag="Tools"; caption="More"; contentDescription="More tools"
+            tag="Tools"; caption=null; contentDescription="More tools"
         }
         toolbarButtons["Tools"]=more
+        // Tools is a stable left anchor and Voice is a stable right anchor.  Only
+        // the center strip changes between the tool icons and suggestions.
         toolbarRow.addView(more,LayoutParams(context.dp(46),context.dp(44)))
-        content.addView(toolbarRow,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(44)))
-        refreshToolbar()
+        toolbarRow.addView(center,LayoutParams(0,context.dp(44),1f))
+        (microphone as? ToolbarButton)?.caption = null
+        toolbarRow.addView(microphone,LayoutParams(context.dp(44),context.dp(44)))
         candidateRow.tag="SuggestionStrip"
         candidateRow.isBaselineAligned=false
         candidateRow.gravity=Gravity.CENTER
-        candidateRow.visibility=if(options.enabled("suggestion_strip")) View.VISIBLE else View.GONE
-        content.addView(candidateRow,0,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(42)))
+        content.addView(toolbarRow,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(44)))
+        refreshToolbar()
+        center.addView(candidateRow, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, context.dp(44)))
+        candidateRow.visibility = View.GONE
         content.addView(voiceMessage.apply {
             tag = "VoiceMessage"
             textSize = 13f
@@ -183,15 +202,16 @@ class KeyboardView @JvmOverloads constructor(
         bar.removeAllViews()
         toolbarDragOrigins.clear()
         toolbarButtons.keys.filter { it!="Tools" }.toList().forEach(toolbarButtons::remove)
-        toolOrder.toolbar().forEach { tool ->
+        toolOrder.toolbar().filter { it.id != "Voice" }.forEach { tool ->
             val button=if(tool.id=="Voice") microphone else headerButton(tool.glyph,R.string.keyboard_title) { onTool(tool.command) }
             button.tag=tool.id; button.contentDescription=tool.label
-            (button as? ToolbarButton)?.caption=tool.label
+            (button as? ToolbarButton)?.caption=null
             (button.parent as? android.view.ViewGroup)?.removeView(button)
             bar.addView(button,LayoutParams(context.dp(46),context.dp(44)))
             toolbarButtons[tool.id]=button
             attachToolbarReorderTouch(button, tool.id)
         }
+        toolbarButtons["Voice"] = microphone
         setActiveTool("")
     }
     @SuppressLint("ClickableViewAccessibility")
@@ -202,6 +222,8 @@ class KeyboardView @JvmOverloads constructor(
                     toolbarTouch.removeCallbacksAndMessages(null)
                     toolbarDragId=null; toolbarDragTarget=id; toolbarDragStartRawX=event.rawX
                     toolbarDragStartScroll=toolbarScroller?.scrollX ?: 0
+                    val location=IntArray(2); view.getLocationOnScreen(location)
+                    toolbarGrabOffsetX=event.rawX-location[0]
                     view.isPressed=true
                     toolbarTouch.postDelayed({ beginToolbarReorder(id,button) },800)
                     true
@@ -231,25 +253,30 @@ class KeyboardView @JvmOverloads constructor(
     private fun beginToolbarReorder(id:String, button:Button) {
         if(toolbarButtons[id] !== button || !button.isPressed) return
         toolbarDragId=id; toolbarDragTarget=id; rememberToolbarOrigins()
-        button.bringToFront(); button.parent?.requestDisallowInterceptTouchEvent(true)
+        // Do not reparent or bring the child to front: doing so changes the
+        // HorizontalScrollView's child order and was the source of disappearing
+        // icons during a drag. Elevation keeps the active item readable instead.
+        button.elevation=context.dp(6).toFloat(); button.alpha=0.92f
+        button.parent?.requestDisallowInterceptTouchEvent(true)
         feedback.perform(button)
     }
     private fun updateToolbarReorder(button:Button, rawX:Float) {
         val source=toolbarDragId ?: return
         val scroller=toolbarScroller ?: return
-        val dx=rawX-toolbarDragStartRawX+(scroller.scrollX-toolbarDragStartScroll)
-        button.translationX=dx
+        val headerLocation=IntArray(2); header?.getLocationOnScreen(headerLocation)
+        val pointerInHeader=rawX-headerLocation[0]
+        val originalLeft=toolbarDragOrigins[source] ?: button.left
+        button.translationX=pointerInHeader-toolbarGrabOffsetX-originalLeft
         val edge=context.dp(38)
         val localX=rawX-IntArray(2).also { scroller.getLocationOnScreen(it) }[0]
         when {
             localX<edge -> scroller.scrollBy(-context.dp(18),0)
             localX>scroller.width-edge -> scroller.scrollBy(context.dp(18),0)
         }
-        val headerLocation=IntArray(2); header?.getLocationOnScreen(headerLocation)
-        val pointerInHeader=rawX-headerLocation[0]+(scroller.scrollX-toolbarDragStartScroll)
         val target=toolOrder.toolbar().map(KeyboardTool::id).minByOrNull { id ->
             val view=toolbarButtons[id] ?: return@minByOrNull Float.MAX_VALUE
-            kotlin.math.abs(pointerInHeader-(view.left+view.width/2f))
+            val origin=toolbarDragOrigins[id] ?: view.left
+            kotlin.math.abs(pointerInHeader-(origin+view.width/2f))
         } ?: source
         if(target!=toolbarDragTarget) {
             toolbarDragTarget=target
@@ -259,7 +286,7 @@ class KeyboardView @JvmOverloads constructor(
     private fun finishToolbarReorder(commit:Boolean) {
         val source=toolbarDragId
         val target=toolbarDragTarget
-        toolbarButtons.values.forEach { it.animate().translationX(0f).setDuration(80).start() }
+        toolbarButtons.values.forEach { it.translationX=0f; it.elevation=0f; it.alpha=1f }
         toolbarDragOrigins.clear(); toolbarDragId=null; toolbarDragTarget=null
         toolbarButtons.values.forEach { it.parent?.requestDisallowInterceptTouchEvent(false) }
         if(commit && source!=null && target!=null) {
@@ -284,14 +311,38 @@ class KeyboardView @JvmOverloads constructor(
             }
             val here=toolbarDragOrigins[id] ?: return@forEachIndexed
             val there=toolbarDragOrigins[destination] ?: return@forEachIndexed
-            toolbarButtons[id]?.animate()?.translationX((there-here).toFloat())?.setDuration(85)?.start()
+            toolbarButtons[id]?.apply {
+                if (id==source) return@apply
+                translationX = (there-here).toFloat()
+            }
         }
     }
     private fun toolbarVisible(visible: Boolean) {
         toolbarTouch.removeCallbacksAndMessages(null)
         if(toolbarDragId!=null) finishToolbarReorder(false)
         toolbarContainer?.visibility=if(visible) View.VISIBLE else View.GONE
-        toolbarScroller?.visibility=if(visible) View.VISIBLE else View.GONE
+        if (!visible) {
+            toolbarScroller?.visibility = View.GONE
+            candidateRow.visibility = View.GONE
+        } else {
+            applyCenterMode()
+        }
+    }
+
+    private fun applyCenterMode() {
+        val enabled = options.enabled("suggestion_strip")
+        val showSuggestions = typingActive && enabled && settingsPage.isEmpty() && panel == null && writingPanel == null && !recorder.isVisible
+        toolbarScroller?.visibility = if (showSuggestions) View.GONE else View.VISIBLE
+        candidateRow.visibility = if (showSuggestions) View.VISIBLE else View.GONE
+    }
+
+    /** Once composition starts, the center toolbar area becomes the suggestion area. */
+    fun setTypingActive(active: Boolean) {
+        typingActive = active
+        if (settingsPage.isEmpty() && panel == null && writingPanel == null && !recorder.isVisible) {
+            applyCenterMode()
+            requestLayout()
+        }
     }
 
     private fun headerButton(label: String, description: Int, action: () -> Unit) = ToolbarButton(context).apply {
@@ -367,12 +418,22 @@ class KeyboardView @JvmOverloads constructor(
             (button as? KeyButton)?.symbolHint = if(options.enabled("symbols_hold")) symbols[letter.firstOrNull()]?.toString().orEmpty() else ""
         }
         shiftButton?.apply {
-            text = if (state.shift == ShiftMode.LOCKED) "⇪" else "⇧"
+            setText(R.string.key_shift_short)
             contentDescription = context.getString(if (state.shift == ShiftMode.LOCKED) R.string.key_caps else R.string.key_shift)
-            setTextColor(if (state.shift == ShiftMode.OFF) palette.text else palette.accent)
+            setTextColor(android.graphics.Color.WHITE)
+            // Keep Shift on the same themed surface; selected state is communicated by
+            // pressed/selected feedback and accessibility state rather than a color jump.
+            background = shiftBackground(false)
             isSelected = state.shift != ShiftMode.OFF
         }
     }
+
+
+    private fun keyHeightBase(landscape:Boolean):Int {
+        val base = if (landscape) 42 else 54
+        return context.dp((base * options.number("height_scale") / 100f).toInt().coerceIn(if(landscape) 34 else 42, if(landscape) 58 else 74))
+    }
+    private fun shiftBackground(active:Boolean) = palette.keyBackground(KeySurface.FUNCTION, context.dp(11).toFloat())
 
     private fun addRow(keys: List<Key>, inset: Int = 0) {
         val row = LinearLayout(context).apply {
@@ -380,11 +441,7 @@ class KeyboardView @JvmOverloads constructor(
             setPadding(context.dp(inset), 0, context.dp(inset), 0)
         }
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val height = context.dp(when (preferences.height) {
-            KeyboardHeight.COMPACT -> 42
-            KeyboardHeight.NORMAL -> if (landscape) 42 else 54
-            KeyboardHeight.TALL -> if (landscape) 48 else 64
-        })
+        val height = keyHeightBase(landscape)
         for (key in keys) {
             val button = (if (key == Key.Delete) RepeatingDeleteButton(context) else if (key == Key.Enter) EnterKeyButton(context) else if(key==Key.Space || key==Key.Language || key is Key.Text) GestureKeyButton(context) else KeyButton(context)).apply {
                 isAllCaps = false
@@ -397,13 +454,14 @@ class KeyboardView @JvmOverloads constructor(
                 minHeight = 0
                 minimumHeight = 0
                 setPadding(0, 0, 0, 0)
-                setTextColor(if (key == Key.Enter) palette.onAccent else palette.text)
+                setTextColor(if (key == Key.Enter) palette.onAccent else if (key == Key.Shift) android.graphics.Color.WHITE else palette.text)
                 background = palette.keyBackground(when (key) {
                     Key.Enter -> KeySurface.ENTER
                     Key.Space -> KeySurface.SPACE
                     is Key.Text -> KeySurface.NORMAL
                     else -> KeySurface.FUNCTION
                 }, context.dp(11).toFloat())
+                if (key == Key.Shift) background = shiftBackground(false)
                 stateListAnimator = null
                 // Stable identifiers are also used by regression tests.
                 tag = when (key) {
@@ -413,7 +471,7 @@ class KeyboardView @JvmOverloads constructor(
                 }
                 text = when (key) {
                     is Key.Text -> key.text
-                    Key.Shift -> "⇧"
+                    Key.Shift -> context.getString(R.string.key_shift_short)
                     Key.Delete -> "⌫"
                     Key.Enter -> "↵"
                     Key.Space -> if(options.number("language")==1) "اردو" else if(options.number("language")==2) "Roman Urdu" else context.getString(R.string.key_space)
@@ -506,7 +564,7 @@ class KeyboardView @JvmOverloads constructor(
     private fun restoreTypingViews() {
         rows.visibility=View.VISIBLE; header?.visibility=View.VISIBLE; toolbarVisible(true)
         title.visibility=if(options.enabled("floating")) View.VISIBLE else View.GONE
-        candidateRow.visibility=if(options.enabled("suggestion_strip")) View.VISIBLE else View.GONE
+        applyCenterMode()
         setActiveTool("")
     }
     private fun showVoiceWorkspace() {
@@ -519,6 +577,14 @@ class KeyboardView @JvmOverloads constructor(
     fun showVoiceCompleted(text:String="") {
         showVoiceWorkspace(); voiceStatus.setText(R.string.voice_completed); recorder.transcript.text=text
         recorder.findViewWithTag<View>("VoiceStop")?.visibility=View.GONE; recorder.findViewWithTag<View>("VoiceRetry")?.visibility=View.VISIBLE
+    }
+    fun showVoiceDeleted() {
+        showVoiceWorkspace()
+        voiceStatus.setText(R.string.voice_ready)
+        recorder.transcript.text = ""
+        recorder.showTranslation("")
+        recorder.findViewWithTag<View>("VoiceStop")?.visibility = View.VISIBLE
+        recorder.findViewWithTag<View>("VoiceRetry")?.visibility = View.GONE
     }
     fun showVoiceFailure() { showVoiceWorkspace(); voiceStatus.setText(R.string.voice_error_label); recorder.findViewWithTag<View>("VoiceRetry")?.visibility=View.VISIBLE }
     fun setVoiceLevel(rms:Float) { voiceLevel.setLevel(rms) }
@@ -533,6 +599,7 @@ class KeyboardView @JvmOverloads constructor(
     fun showTextMessage(text:String) { voiceMessage.text=text; voiceMessage.maxLines=3; voiceMessage.visibility=View.VISIBLE }
 
     fun showVoicePreview(text:String) { recorder.transcript.text=text; recorder.transcript.visibility=View.VISIBLE }
+    fun showVoiceTranslation(text:String) { recorder.showTranslation(text) }
     fun showVoiceLanguages(selected:String=dev.raabta.keyboard.voice.VoiceSettings.language(context)) { recorder.language(selected,onTool) }
     fun hideVoiceLanguages() { languageBar?.let { content.removeView(it) }; languageBar=null }
 
@@ -568,10 +635,13 @@ class KeyboardView @JvmOverloads constructor(
         'ح' to 'خ', 'ط' to 'ظ', 'ض' to 'ث', 'ی' to 'ئ', 'و' to 'ؤ')
     private fun configureGesture(button:GestureKeyButton,key:Key) {
         gestureButtons.add(button)
-        button.tapSlop=android.view.ViewConfiguration.get(context).scaledTouchSlop*(1.1f+options.number("typing_sensitivity")/100f*2.2f)
+        button.tapSlop=android.view.ViewConfiguration.get(context).scaledTouchSlop.toFloat() *
+            (0.72f + options.number("typing_sensitivity") / 100f * 0.55f)
         if(key==Key.Space && options.enabled("cursor_slide")) button.onMoveCursor={ onKey(Key.Cursor(it)) }
         if(key==Key.Space || key==Key.Language) {
-            button.stationaryHoldMillis=1_500L
+            // Match the system keyboard's quick language-switch affordance while
+            // keeping a normal tap a normal space/language-key tap.
+            button.stationaryHoldMillis=800L
             button.onStationaryHold=onSwitch
         }
         if(key is Key.Text && state.mode==KeyboardMode.LETTERS) {
@@ -602,7 +672,7 @@ class KeyboardView @JvmOverloads constructor(
     }
     fun showCandidates(candidates:List<Candidate>) {
         val ordered=if(options.enabled("suggestion_strip") && panel==null) candidates.take(options.number("suggestion_count")) else emptyList()
-        val visible=if(ordered.size>=3) listOf(ordered[1],ordered[0])+ordered.drop(2) else ordered
+        val visible=ordered
         while(candidateButtons.size<options.number("suggestion_count")) {
             val button=Button(context).apply {
                 isAllCaps=false; setTextColor(palette.text); minWidth=0; minimumWidth=0
@@ -651,12 +721,12 @@ class KeyboardView @JvmOverloads constructor(
         for(i in 0 until content.childCount) content.getChildAt(i).visibility=View.GONE
         if(page.isEmpty()) {
             header?.visibility=View.VISIBLE; toolbarVisible(true); title.visibility=if(options.enabled("floating")) View.VISIBLE else View.GONE; rows.visibility=View.VISIBLE
-            content.findViewWithTag<View>("SuggestionStrip")?.visibility=if(options.enabled("suggestion_strip")) View.VISIBLE else View.GONE
+            applyCenterMode()
             render(enterLabel); return
         }
         val settings:View=if(page=="Tools") dev.raabta.keyboard.ui.ToolsPanel(context,{ showSettings("") },onTool,{ refreshToolbar() }) else KeyboardSettingsPanel(context,page,::showSettings,{ onSettingsChanged(page) },onTool,internal=true)
         panel=settings
-        setBackgroundColor(palette.background)
+        background = palette.backgroundDrawable()
         content.translationX=0f; content.translationY=0f
         content.addView(settings,LayoutParams(LayoutParams.MATCH_PARENT,context.dp(if(resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE) 220 else 360)))
         toolbarVisible(false); header?.visibility=View.GONE; setActiveTool("Tools")
@@ -690,6 +760,30 @@ class KeyboardView @JvmOverloads constructor(
         candidateRow.visibility=View.GONE; toolbarVisible(false); header?.visibility=View.GONE; title.visibility=View.GONE
         settingsPage="Tools"; requestLayout()
     }
+    fun showResizeMode() {
+        showSettings("")
+        resizeOriginalScale=options.number("height_scale")
+        rows.visibility=View.VISIBLE; candidateRow.visibility=View.GONE; toolbarVisible(false); header?.visibility=View.GONE; title.visibility=View.GONE
+        val controls=LinearLayout(context).apply { orientation=VERTICAL; tag="ResizePanel"; setPadding(context.dp(8),context.dp(6),context.dp(8),context.dp(6)); background=palette.backgroundDrawable() }
+        val titleRow=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL }
+        titleRow.addView(TextView(context).apply { setText(R.string.resize_keyboard); textSize=15f; setTextColor(palette.text) },LayoutParams(0,context.dp(34),1f))
+        fun ctl(label:String, tagValue:String, action:()->Unit)=Button(context).apply { text=label; tag=tagValue; textSize=12f; isAllCaps=false; setTextColor(palette.text); background=palette.pressed(radius=context.dp(8).toFloat()); setOnClickListener { action() } }
+        titleRow.addView(ctl("Reset","ResizeReset") { options.setNumber("height_scale",100); render(enterLabel); showResizeMode() },LayoutParams(context.dp(70),context.dp(34)))
+        titleRow.addView(ctl("Cancel","ResizeCancel") { options.setNumber("height_scale",resizeOriginalScale); showSettings("") },LayoutParams(context.dp(78),context.dp(34)))
+        titleRow.addView(ctl("Done","ResizeDone") { showSettings("") },LayoutParams(context.dp(70),context.dp(34)))
+        controls.addView(titleRow)
+        controls.addView(SeekBar(context).apply { tag="ResizeSlider"; max=60; progress=options.number("height_scale")-75; progressTintList=ColorStateList.valueOf(palette.accent); thumbTintList=ColorStateList.valueOf(palette.accent); setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar:SeekBar?, progress:Int, fromUser:Boolean) { options.setNumber("height_scale",75+progress); render(enterLabel); requestLayout() }
+            override fun onStartTrackingTouch(bar:SeekBar?)=Unit
+            override fun onStopTrackingTouch(bar:SeekBar?)=Unit
+        }) },LayoutParams(LayoutParams.MATCH_PARENT,context.dp(42)))
+        panel?.let { content.removeView(it) }
+        panel=controls
+        content.addView(controls, content.indexOfChild(rows).coerceAtLeast(0), LayoutParams(LayoutParams.MATCH_PARENT, context.dp(88)))
+        settingsPage="Resize"
+        requestLayout()
+    }
+
     fun showEditingTools() {
         showSettings(""); rows.removeAllViews(); utilityWorkspace()
         rows.addView(Button(context).apply { styleTool(this); setText(R.string.back_to_keyboard); setOnClickListener { showSettings("") } })
@@ -790,30 +884,34 @@ class KeyboardView @JvmOverloads constructor(
     override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
         val landscape=resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE
         content.layoutParams.width=(MeasureSpec.getSize(widthMeasureSpec)-paddingLeft-paddingRight).coerceIn(0,context.dp(if(options.number("one_handed")==0 && !floating) 840 else 320))
-        val defaultKey=context.dp(when(preferences.height) { KeyboardHeight.COMPACT -> 42; KeyboardHeight.NORMAL -> if(landscape) 42 else 54; KeyboardHeight.TALL -> if(landscape) 48 else 64 })
+        val defaultKey=keyHeightBase(landscape)
         var count=4
         if(preferences.numberRow || (state.mode!=KeyboardMode.LETTERS && options.enabled("symbols_number_row"))) count++
         if((state.mode==KeyboardMode.LETTERS && options.enabled("emoji_row")) || (state.mode!=KeyboardMode.LETTERS && options.enabled("symbols_emoji"))) count++
         val toolbarHeight=context.dp(44)
-        val normal=count*(defaultKey+context.dp(6))+toolbarHeight+(if(options.enabled("suggestion_strip")) context.dp(42) else 0)
+        // Suggestions occupy the same fixed-height center strip as the toolbar;
+        // they must not add a second row or shrink the key area.
+        val normal=count*(defaultKey+context.dp(6))+toolbarHeight
         val system=if(MeasureSpec.getMode(heightMeasureSpec)==MeasureSpec.UNSPECIFIED) Int.MAX_VALUE else (MeasureSpec.getSize(heightMeasureSpec)-paddingTop-paddingBottom).coerceAtLeast(0)
         val area=minOf(normal,system)
         val workspace=panel!=null || writingPanel!=null || recorder.isVisible || emojiPanel!=null
         content.layoutParams.height=if(workspace) area else LayoutParams.WRAP_CONTENT
         val message=if(voiceMessage.isVisible) context.dp(if(landscape) 48 else 64) else 0
         voiceMessage.layoutParams.height=if(message>0) message else LayoutParams.WRAP_CONTENT
-        panel?.layoutParams?.height=(area-message).coerceAtLeast(0)
+        panel?.layoutParams?.height=if(settingsPage=="Resize") context.dp(88) else (area-message).coerceAtLeast(0)
         recorder.layoutParams.height=(area-message).coerceAtLeast(0)
         val writingEditorHeight=context.dp(if(resources.configuration.fontScale>1.2f) 102 else 94)
         writingPanel?.layoutParams?.height=if(writingKeyboardVisible) writingEditorHeight else (area-message).coerceAtLeast(0)
         emojiPanel?.layoutParams?.height=if(emojiSearching) context.dp(88) else area
-        val fixed=if(workspace) (if(writingPanel!=null && writingKeyboardVisible) writingEditorHeight else if(emojiSearching) context.dp(88) else 0)+message else toolbarHeight+(if(candidateRow.isVisible) context.dp(42) else 0)+(if(title.isVisible) context.dp(28) else 0)+message
+        val fixed=if(workspace) (if(settingsPage=="Resize") context.dp(88) else if(writingPanel!=null && writingKeyboardVisible) writingEditorHeight else if(emojiSearching) context.dp(88) else 0)+message else toolbarHeight+(if(title.isVisible) context.dp(28) else 0)+message
         val keyHeight=minOf(defaultKey,((area-fixed)/count-context.dp(6)).coerceAtLeast(context.dp(16)))
         for(i in 0 until rows.childCount) (rows.getChildAt(i) as? LinearLayout)?.let { row ->
             for(j in 0 until row.childCount) if(row.getChildAt(j) is Button) row.getChildAt(j).layoutParams.height=keyHeight
         }
         gravity=when(options.number("one_handed")) { 1 -> Gravity.START; 2 -> Gravity.END; else -> Gravity.CENTER_HORIZONTAL } or if(floating) Gravity.BOTTOM else Gravity.TOP
-        title.dragEnabled=floating; setBackgroundColor(if(floating) android.graphics.Color.TRANSPARENT else palette.background); content.setBackgroundColor(palette.background)
+        title.dragEnabled=floating
+        background = if(floating) rounded(android.graphics.Color.TRANSPARENT,0f) else palette.backgroundDrawable()
+        content.background = if(floating) rounded(android.graphics.Color.TRANSPARENT,0f) else palette.backgroundDrawable()
         super.onMeasure(widthMeasureSpec,heightMeasureSpec)
         if(floating) {
             val available=MeasureSpec.getSize(heightMeasureSpec)

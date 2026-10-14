@@ -17,7 +17,7 @@ object LocalSuggestions {
         "السلام سلام شکریہ محبت پیار خوش خوشی سالگرہ مبارک صبح رات اچھا اچھی آپ میں ہم گھر پانی چائے دوست " +
         "کیسے ہیں ہے نہیں ہاں کیا کیوں کہاں یہاں وہاں کرنا کرو کام بات زبان اردو انگریزی فون موبائل کیبورڈ مدد سوال جواب " +
         "khushi pyar pyaar mohabbat shukriya salam acha achi aap mein main hum ghar pani paani chai dost subah raat " +
-        "kaise hain hai nahi haan kya kyun kahan yahan wahan karna karo kaam baat zaban urdu english madad sawal jawab").split(' ').distinct()
+        "kaise hain hai nahi haan kya kia kyaa kyun kahan yahan wahan karna karo kaam baat zaban urdu english madad sawal jawab").split(' ').distinct()
     val corrections = mapOf("teh" to "the", "helo" to "hello", "helllo" to "hello", "recieve" to "receive",
         "becuase" to "because", "thnaks" to "thanks", "freind" to "friend", "woudl" to "would", "adn" to "and")
     val grammar = mapOf("i is" to "I am", "you is" to "you are", "we is" to "we are", "they is" to "they are", "he are" to "he is", "she are" to "she is")
@@ -40,15 +40,17 @@ object LocalSuggestions {
         if (grammarEnabled) grammar.entries.firstOrNull { before.lowercase(Locale.ROOT).endsWith(it.key) }
             ?.let { result.add(Candidate("Grammar: ${it.value}", it.value, before.takeLast(it.key.length))) }
         if (wordsEnabled && word.isNotEmpty()) {
+            result.add(Candidate(word, word, word))
             if (roman && language == 2) RomanUrdu.candidates(word).forEach { result.add(Candidate(it, it, word)) }
             learned.filter { !it.equals(word, true) }.forEach { result.add(Candidate(it, matchCase(word, it), word)) }
             corrections[lower]?.let { result.add(Candidate(it, matchCase(word, it), word)) }
-            (dictionary + words).distinct().asSequence().filter { it.startsWith(lower, true) && !it.equals(word, true) }
+            val allWords=(dictionary + words).distinct()
+            allWords.asSequence().filter { it.startsWith(lower, true) && !it.equals(word, true) }
                 .filter { language != 1 || it.any { c -> c in '\u0600'..'\u06ff' } }
-                .sortedWith(compareBy<String> { priority(lower, it) }.thenBy { kotlin.math.abs(it.length-word.length) }.thenBy { it.length }.thenBy { it.lowercase(Locale.ROOT) })
-                .take(6).forEach { result.add(Candidate(it, matchCase(word, it), word)) }
+                .sortedWith(compareBy<String> { priority(lower, it) }.thenBy { romanPenalty(lower,it,language,roman) }.thenBy { kotlin.math.abs(it.length-word.length) }.thenBy { it.length }.thenBy { it.lowercase(Locale.ROOT) })
+                .take(8).forEach { result.add(Candidate(it, matchCase(word, it), word)) }
         }
-        if (wordsEnabled && lower.length >= 3 && result.count { !it.emoji } < 2 && language != 1) {
+        if (wordsEnabled && lower.length >= 3 && result.count { !it.emoji } < 3 && language != 1) {
             words.asSequence().filter { it.firstOrNull() == lower.firstOrNull() && kotlin.math.abs(it.length - lower.length) <= 2 }
                 .map { it to distance(lower, it) }.filter { it.second <= 1 }.sortedBy { it.second }.take(2)
                 .forEach { result.add(Candidate(it.first, matchCase(word, it.first), word)) }
@@ -62,9 +64,36 @@ object LocalSuggestions {
         }
         if (smartReplies && word.isEmpty() && finished in listOf("hello", "hi", "سلام"))
             listOf("Hello!", "How are you?", "وعلیکم السلام").forEach { result.add(Candidate(it, it)) }
-        return result.distinctBy { it.text }.sortedBy { if(it.emoji) 0 else 1 }.take(8)
+        return result.distinctBy { it.text }.take(8)
     }
-    private fun distance(a: String, b: String): Int {
+    fun glideCandidates(path: String, dictionary: List<String>, learned: List<String> = emptyList(), language: Int = 0, roman: Boolean = false): List<Candidate> {
+        val p = compact(path)
+        if (p.length < 2) return emptyList()
+        val pool=(dictionary + learned + words).distinct().asSequence()
+            .filter { language != 1 || it.any { c -> c in '\u0600'..'\u06ff' } }
+            .mapNotNull { word ->
+                val c=compact(word)
+                val starts=if(c.firstOrNull()==p.firstOrNull()) 0 else 5
+                val ends=if(c.lastOrNull()==p.lastOrNull()) 0 else 2
+                val order=orderedPenalty(p,c)
+                if(order>=99) null else word to (starts+ends+order+distance(p,c)+romanPenalty(p,word,language,roman))
+            }.sortedWith(compareBy<Pair<String,Int>> { it.second }.thenBy { kotlin.math.abs(compact(it.first).length-p.length) }.thenBy { it.first.length })
+            .take(6).map { Candidate(it.first, it.first, "") }.toList()
+        return pool
+    }
+    fun glide(path: String, dictionary: List<String>): String? = glideCandidates(path,dictionary).firstOrNull()?.text
+    private fun compact(s: String) = s.lowercase(Locale.ROOT).fold(StringBuilder()) { acc, c -> if (acc.lastOrNull() != c) acc.append(c); acc }.toString()
+    private fun orderedPenalty(path:String, word:String):Int {
+        var index=0; var misses=0
+        for(c in path) {
+            val found=word.indexOf(c,index)
+            if(found>=0) index=found+1 else misses++
+        }
+        return if(misses>path.length/2) 99 else misses*3 + kotlin.math.abs(word.length-path.length)
+    }
+    fun romanKey(value:String) = compact(value.lowercase(Locale.ROOT).replace("aa","a").replace("ee","i").replace("oo","u").replace("ya","ia").replace("ky","ki"))
+    private fun romanPenalty(prefix:String,value:String,language:Int,roman:Boolean):Int = if(language==2 && roman && romanKey(value).startsWith(romanKey(prefix))) 0 else 1
+    fun distance(a: String, b: String): Int {
         var row = IntArray(b.length + 1) { it }
         a.forEachIndexed { i, c ->
             val next = IntArray(b.length + 1); next[0] = i + 1
@@ -85,11 +114,5 @@ object LocalSuggestions {
         }
         val index = common.indexOfFirst { it.equals(value, true) }
         return if (index >= 0) index else 50
-    }
-    fun glide(path: String, dictionary: List<String>): String? {
-        fun compact(s: String) = s.lowercase(Locale.ROOT).fold("") { acc, c -> if (acc.lastOrNull() == c) acc else acc + c }
-        val p = compact(path)
-        if (p.length < 2) return null
-        return (dictionary + words).firstOrNull { compact(it) == p }
     }
 }

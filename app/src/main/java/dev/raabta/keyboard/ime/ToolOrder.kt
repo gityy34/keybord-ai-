@@ -27,10 +27,8 @@ object KeyboardTools {
         KeyboardTool("Text editing", "Text editing", "✎", "editing"),
         KeyboardTool("Resize", "Resize", "□", "resize"),
         KeyboardTool("Connections", "Connections", "⚙", "connections"),
-        KeyboardTool("Roman Urdu → Urdu", "Roman Urdu", "⇄", "roman"),
         KeyboardTool("Stickers / GIFs", "Stickers / GIFs", "☺", "media"),
         KeyboardTool("Floating", "Floating", "⌨", "floating"),
-        KeyboardTool("Share", "Share", "⇄", "share"),
         KeyboardTool("One-handed", "One-handed", "□", "one_handed"),
     )
     val defaultToolbar = listOf("AI", "Grammar", "Rewrite", "Tone", "Translation", "Voice")
@@ -64,6 +62,7 @@ class ToolOrder(context: Context) {
         if (toToolbar) bar.add(id) else menu.add(0, id)
         save(bar, menu)
     }
+    fun reset() { prefs.edit { clear() } }
     fun reorder(source: String, target: String, inToolbar: Boolean) {
         val bar = toolbar().map(KeyboardTool::id).toMutableList()
         val menu = more().map(KeyboardTool::id).toMutableList()

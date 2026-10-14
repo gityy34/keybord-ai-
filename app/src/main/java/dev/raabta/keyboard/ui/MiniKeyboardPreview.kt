@@ -1,28 +1,39 @@
 package dev.raabta.keyboard.ui
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.LinearGradient
+import android.graphics.Shader
 import android.view.View
 import androidx.core.graphics.withScale
 
 /** A complete, scaled layout preview; no screenshot assets or brand marks. */
-class MiniKeyboardPreview @JvmOverloads constructor(context: Context, private val colors: Palette = Palette.from(context)) : View(context) {
+class MiniKeyboardPreview @JvmOverloads constructor(context: Context, private var colors: Palette = Palette.from(context)) : View(context) {
     private val paint=Paint(Paint.ANTI_ALIAS_FLAG)
     private fun box(canvas: Canvas,x:Float,y:Float,w:Float,h:Float,color:Int,r:Float=4f) {
-        paint.color=color; paint.style=Paint.Style.FILL; canvas.drawRoundRect(RectF(x,y,x+w,y+h),r,r,paint)
+        paint.shader=null; paint.color=color; paint.style=Paint.Style.FILL; canvas.drawRoundRect(RectF(x,y,x+w,y+h),r,r,paint)
+        if (colors.keyBorders) {
+            paint.style=Paint.Style.STROKE; paint.strokeWidth=0.8f; paint.color=colors.border
+            canvas.drawRoundRect(RectF(x+0.4f,y+0.4f,x+w-0.4f,y+h-0.4f),r,r,paint); paint.style=Paint.Style.FILL
+        }
     }
     private fun label(canvas: Canvas,value:String,x:Float,y:Float,size:Float,color:Int) {
         paint.color=color; paint.textSize=size; paint.textAlign=Paint.Align.CENTER
         paint.typeface=android.graphics.Typeface.DEFAULT
         canvas.drawText(value,x,y,paint)
     }
+    @SuppressLint("DrawAllocation")
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val sx=width/174f; val sy=height/135f
         canvas.withScale(sx,sy) {
-        box(canvas,0f,0f,174f,135f,colors.background,8f)
+        paint.shader = colors.backgroundGradient?.takeIf { it.size > 1 }?.let {
+            LinearGradient(0f,0f,174f,135f,it.toIntArray(),null,Shader.TileMode.CLAMP)
+        }
+        paint.style=Paint.Style.FILL; paint.color=colors.background; canvas.drawRoundRect(RectF(0f,0f,174f,135f),8f,8f,paint); paint.shader=null
         box(canvas,3f,3f,168f,15f,colors.surface,8f)
         listOf("the","I","you").forEachIndexed { i,v -> label(canvas,v,30f+i*57f,14f,8f,colors.text) }
         listOf("✦","✎","↻","☷","⇄","♩","▦").forEachIndexed { i,v ->
@@ -49,4 +60,5 @@ class MiniKeyboardPreview @JvmOverloads constructor(context: Context, private va
         box(canvas,144f,101f,27f,29f,colors.accent,3f); label(canvas,"↵",157f,120f,15f,colors.onAccent)
         }
     }
+    fun setPalette(value: Palette) { colors=value; invalidate() }
 }

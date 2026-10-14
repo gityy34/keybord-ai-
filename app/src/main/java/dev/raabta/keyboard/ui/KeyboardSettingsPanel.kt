@@ -6,7 +6,9 @@ import android.content.pm.PackageManager
 import android.view.Gravity
 import android.view.View
 import android.widget.*
+import androidx.core.view.isEmpty
 import dev.raabta.keyboard.voice.VoiceSettings
+import dev.raabta.keyboard.R
 import dev.raabta.keyboard.ime.LearnedWords
 import dev.raabta.keyboard.tools.AiConnection
 
@@ -21,7 +23,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
     init {
         orientation = VERTICAL
         tag = "SettingsPanel"
-        setBackgroundColor(palette.background)
+        background = palette.backgroundDrawable()
         val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(palette.surface) }
         header.addView(dev.raabta.keyboard.ime.ToolbarButton(context).apply {
             text = "‹"; contentDescription = "Back"; tag = "SettingsBack"
@@ -51,14 +53,13 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
                 row("Emoji", "Open the emoji picker.") { action("emoji") }
                 row("One-handed", "Choose left or right in Preferences.") { navigate("Preferences") }
                 row("Text editing", "Move, select, copy, cut or paste text.") { action("editing") }
-                row("Share Raabta", "Share the APK page.") { action("share") }
                 toggle("floating", "Floating", "Compact keyboard over your app; drag its title to reposition.")
                 row("Undo", "Ask the current app to undo its last edit.") { action("edit:undo") }
                 row("Translation", "Urdu ↔ English, including voice-to-translation.") { action("translate") }
                 row("AI Write", "Rewrite, correct, shorten or continue using your chosen provider.") { action("ai") }
-                row("Roman Urdu → Urdu", "Convert common Roman Urdu words locally.") { action("roman") }
                 row("Clipboard", "Open clipboard previews.") { action("clipboard") }
             }
+            "Search" -> settingsSearch()
             "Corrections and suggestions" -> corrections()
             "Emojis, stickers and GIFs" -> emoji()
             "Clipboard" -> clipboard()
@@ -93,7 +94,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
             "Dictionary" -> {
                 section("Personal dictionary")
                 row("Add current word", "Save the word immediately before the cursor, explicitly and locally.") { action("dictionary_add"); navigate(page) }
-                toggle("learn_words", "Learn frequently typed words", "Learn a completed word after 3 uses. Local only; excludes password, private, email and URL fields.")
+                toggle("learn_words", "Learn frequently typed words", "Rank local words by frequency, recency and explicit selection. Excludes password, private, email and URL fields.")
                 row("Clear learned words", "Remove all learned frequencies without changing your explicit dictionary.") { action("learned_clear"); navigate(page) }
                 options.dictionary().forEach { word -> row(word, "Tap to remove this word.") { options.removeWord(word); changed(); navigate(page) } }
             }
@@ -114,7 +115,101 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
             "Clipboard" to "Copied text, images and extracted items", "Dictionary" to "Your explicitly saved words",
             "Emojis, stickers and GIFs" to "Emoji rows, size and suggestions", "Privacy" to "Local data and permissions",
             "Writing tools" to "Translation, Roman Urdu and optional AI connection", "About" to "Version and app information", "Help and feedback" to "Usage and troubleshooting").forEach { (title, detail) -> row(title, detail) { navigate(title) } }
-        row("Share Raabta", "Share the APK download page.") { action("share") }
+    }
+    private fun settingsSearch() {
+        section("Search settings")
+        val query = EditText(context).apply {
+            hint = "Search settings"
+            setSingleLine(true)
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            tag = "SettingsSearchInput"
+            setTextColor(palette.text)
+            setHintTextColor(palette.muted)
+            background = palette.pressed(radius=context.dp(10).toFloat())
+            setPadding(context.dp(12), 0, context.dp(12), 0)
+        }
+        body.addView(query, LayoutParams(LayoutParams.MATCH_PARENT, context.dp(46)))
+        val results = LinearLayout(context).apply { orientation = VERTICAL; tag = "SettingsSearchResults" }
+        body.addView(results, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        data class SearchEntry(val title: String, val detail: String, val page: String)
+        // Keep this index explicit and human-readable.  It covers both section
+        // headings and the individual controls users commonly search for, while
+        // each result still opens the real settings page that owns the control.
+        val entries = listOf(
+            SearchEntry("Preferences", "Typing speed, key response, language key and layout", "Preferences"),
+            SearchEntry("Keyboard sensitivity", "Accept rapid taps without delaying ordinary typing", "Preferences"),
+            SearchEntry("Suggestion response delay", "Control how quickly suggestions refresh", "Preferences"),
+            SearchEntry("Number row", "Always show numbers above letter keys", "Preferences"),
+            SearchEntry("Language switch key", "Show or hide the globe language key", "Preferences"),
+            SearchEntry("Text size", "Adjust the letter and key text size", "Preferences"),
+            SearchEntry("Font size", "Adjust letter size", "Preferences"),
+            SearchEntry("Suggestion strip", "Show suggestions and access features", "Corrections and suggestions"),
+            SearchEntry("Corrections and suggestions", "Suggestions, learned words and clipboard suggestions", "Corrections and suggestions"),
+            SearchEntry("Word suggestions", "Show ranked word completions", "Corrections and suggestions"),
+            SearchEntry("Learned words", "Manage locally learned personal words", "Dictionary"),
+            SearchEntry("Glide typing", "Swipe typing and Space cursor control", "Glide typing"),
+            SearchEntry("Languages", "English, Urdu and Roman Urdu layouts", "Languages"),
+            SearchEntry("English", "Choose the English keyboard layout", "Languages"),
+            SearchEntry("Urdu", "Choose the Urdu keyboard layout", "Languages"),
+            SearchEntry("Roman Urdu", "Choose Roman Urdu suggestions and layout", "Languages"),
+            SearchEntry("Theme", "Keyboard themes and import", "Theme"),
+            SearchEntry("Appearance", "Themes, key colours, text and size", "Appearance"),
+            SearchEntry("Clipboard", "Clipboard history and privacy", "Clipboard"),
+            SearchEntry("Recent clipboard", "Browse recently copied text", "Clipboard"),
+            SearchEntry("Pinned clipboard", "Keep selected clips until manually deleted", "Clipboard"),
+            SearchEntry("Voice", "Voice language and recognition behavior", "Voice"),
+            SearchEntry("Voice language", "English, Urdu or automatic detection", "Voice"),
+            SearchEntry("Connections", "AI provider, model and connection status", "Connections"),
+            SearchEntry("AI provider", "Test, activate or change the configured provider", "Connections"),
+            SearchEntry("Privacy", "Local data, permissions and sensitive fields", "Privacy"),
+            SearchEntry("Dictionary", "Personal words and learned data", "Dictionary"),
+            SearchEntry("Emoji", "Emoji rows, size and suggestions", "Emojis, stickers and GIFs"),
+            SearchEntry("Resize keyboard", "Adjust the keyboard height", "Preferences")
+        )
+        fun render(filter: String) {
+            results.removeAllViews()
+            val filtered = entries.filter { filter.isBlank() || (it.title + it.detail).contains(filter, true) }
+            filtered.forEach { entry ->
+                rowInto(results, entry.title, entry.detail) { navigate(entry.page) }
+            }
+            if (results.isEmpty()) results.addView(TextView(context).apply {
+                setText(R.string.settings_search_empty)
+                setTextColor(palette.muted)
+                setPadding(context.dp(8), context.dp(14), context.dp(8), context.dp(14))
+            })
+        }
+        query.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render(s?.toString().orEmpty()) }
+            override fun afterTextChanged(s: android.text.Editable?) = Unit
+        })
+        query.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                results.getChildAt(0)?.performClick()
+                true
+            } else false
+        }
+        render("")
+        query.requestFocus()
+        // Full-screen settings should show the active IME below this field.  The
+        // post also works when the Activity was launched from the keyboard itself.
+        query.post {
+            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                ?.showSoftInput(query, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        }
+    }
+    private fun rowInto(parent: LinearLayout, title: String, detail: String, click: () -> Unit) {
+        parent.addView(LinearLayout(context).apply {
+            orientation = VERTICAL
+            isClickable = true
+            isFocusable = true
+            background = palette.pressed(radius=context.dp(10).toFloat())
+            setPadding(context.dp(12), context.dp(9), context.dp(12), context.dp(9))
+            setOnClickListener { click() }
+            addView(TextView(context).apply { text = title; textSize = 15f; setTextColor(palette.text) })
+            addView(TextView(context).apply { text = detail; textSize = 12f; setTextColor(palette.muted) })
+        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { setMargins(0, context.dp(4), 0, 0) })
     }
     private fun preferences() {
         section("Typing response")
@@ -136,9 +231,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         section("Layout")
         toggle("suggestion_strip", "Suggestion strip", "Show suggestions and access features.")
         toggle("floating", "Floating keyboard", "Compact keyboard over your app; drag the title to reposition.")
-        choices("Keyboard height", listOf("Compact", "Normal", "Tall"), KeyboardPreferences.load(context).height.ordinal) {
-            KeyboardPreferences.save(context, KeyboardPreferences.load(context).copy(height = KeyboardHeight.entries[it])); changed()
-        }
+        row("Resize keyboard", "Drag the live resize handle directly on the keyboard.") { action("resize") }
         choices("One-handed keyboard", listOf("Off", "Left", "Right"), options.number("one_handed")) { options.setNumber("one_handed", it); changed() }
         section("Shortcuts")
         toggle("double_space", "Double-space full stop", "Two quick spaces after text insert a full stop and space.")
@@ -184,7 +277,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         toggle("suggestion_strip", "Suggestion strip", "Show suggestions and access features.")
         choices("Number of suggestions", listOf("2", "3", "4"), options.number("suggestion_count")-2) { options.setNumber("suggestion_count",it+2); changed() }
         toggle("word_suggestions", "Word suggestions", "Show ranked word completions and known typo matches in balanced slots.")
-        toggle("learn_words", "Learn frequently typed words", "Suggest completed words after 3 uses. Stores word frequencies only on this phone; private fields are excluded.")
+        toggle("learn_words", "Learn frequently typed words", "Rank completed and selected words locally by frequency, recency and prefix. Private fields are excluded.")
         toggle("roman_suggestions", "Roman Urdu → Urdu suggestions", "Offer Urdu-script words when Roman Urdu layout is selected.")
         row("Clear learned words", "Remove the local learned-word frequencies.") { action("learned_clear") }
         toggle("next_word", "Next-word suggestions", "Use common local phrases to suggest the next word.")

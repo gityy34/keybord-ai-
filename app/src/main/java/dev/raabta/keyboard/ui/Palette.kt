@@ -19,6 +19,9 @@ data class Palette(
     val style: SurfaceStyle = SurfaceStyle.FLAT,
     val actionStart: Int = accent, val actionEnd: Int = accent,
     private val iconPalette: List<Int> = emptyList(),
+    val backgroundGradient: List<Int>? = null,
+    val keyGradient: List<Int>? = null,
+    val keyBorders: Boolean = true,
 ) {
     val ripple: Int get() = ColorUtils.setAlphaComponent(accent, 55)
     val onAccent: Int get() = if (ColorUtils.calculateContrast(Color.WHITE, accent) >= 4.5) Color.WHITE else Color.BLACK
@@ -27,6 +30,9 @@ data class Palette(
         if (style != SurfaceStyle.FLAT) return ThemeSurfaceDrawable(this, color, radius, outlined)
         return rounded(color, radius).apply { if (outlined) setStroke(1, border) }
     }
+    fun backgroundDrawable(): Drawable = backgroundGradient?.takeIf { it.size > 1 }?.let {
+        GradientDrawable(GradientDrawable.Orientation.TL_BR, it.toIntArray()).apply { cornerRadius = 0f }
+    } ?: rounded(background, 0f)
     fun pressed(color: Int = surface, radius: Float = 12f) = RippleDrawable(ColorStateList.valueOf(ripple), shape(color, radius), null)
     fun keyBackground(role: KeySurface, radius: Float): Drawable {
         val color = when {
@@ -34,7 +40,13 @@ data class Palette(
             role == KeySurface.FUNCTION && style == SurfaceStyle.WHITE -> hex("#E4E7EC")
             else -> key
         }
-        val content = if (style == SurfaceStyle.FLAT) shape(color, radius) else ThemeSurfaceDrawable(this, color, radius, true, role)
+        val gradient = if (role == KeySurface.ENTER && actionStart != actionEnd) listOf(actionStart, actionEnd) else keyGradient
+        val content = if (gradient != null && gradient.size > 1) {
+            GradientDrawable(GradientDrawable.Orientation.TL_BR, gradient.toIntArray()).apply {
+                cornerRadius = radius
+                if (keyBorders) setStroke(1, border)
+            }
+        } else if (style == SurfaceStyle.FLAT) shape(color, radius, keyBorders) else ThemeSurfaceDrawable(this, color, radius, keyBorders, role)
         return RippleDrawable(ColorStateList.valueOf(ripple), content, null)
     }
     fun toolbarBackground(index: Int, selected: Boolean, radius: Float): Drawable {
@@ -67,9 +79,9 @@ data class Palette(
         }
         fun from(context: Context): Palette {
             val theme = KeyboardPreferences.load(context).theme
-            if (theme == KeyboardTheme.CUSTOM) return ThemeImport.load(context)?.palette ?: forTheme(KeyboardTheme.MIDNIGHT)
+            if (theme == KeyboardTheme.CUSTOM) return (ThemeImport.load(context)?.palette ?: forTheme(KeyboardTheme.MIDNIGHT)).copy(keyBorders = KeyboardPreferences.load(context).keyBorders)
             val phoneDark = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-            return forTheme(theme, phoneDark)
+            return forTheme(theme, phoneDark).copy(keyBorders = KeyboardPreferences.load(context).keyBorders)
         }
         fun isDark(context: Context) = from(context).dark
     }
