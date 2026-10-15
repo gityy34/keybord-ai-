@@ -23,6 +23,7 @@ import android.widget.Switch
 import dev.raabta.keyboard.R
 import dev.raabta.keyboard.ime.RaabtaInputMethodService
 import dev.raabta.keyboard.ui.Palette
+import dev.raabta.keyboard.ui.appVersionName
 import dev.raabta.keyboard.ui.dp
 import dev.raabta.keyboard.ui.rounded
 import dev.raabta.keyboard.ui.KeyboardPreferences
@@ -157,7 +158,7 @@ class SetupActivity : Activity() {
         content.addView(label("", 14f, palette.muted).apply { setPadding(0, dp(12), 0, 0) })
         content.addView(label(getString(R.string.privacy_title), 20f, palette.text))
         content.addView(label(getString(R.string.privacy_description), 14f, palette.muted).apply { setPadding(0, dp(8), 0, dp(20)) })
-        content.addView(label(getString(R.string.version_label), 12f, palette.muted))
+        content.addView(label(getString(R.string.version_label, appVersionName()), 12f, palette.muted))
         content.isFocusableInTouchMode = true
         content.requestFocus()
     }

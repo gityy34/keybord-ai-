@@ -17,7 +17,7 @@
     <string name="privacy_title">Local by default</string>
     <string name="privacy_description">Typing stays local. Optional learned words and recent emoji are stored on this phone; private fields are excluded. Translation runs on-device after an explicit model download; Google may collect SDK usage diagnostics. Optional AI sends only your tool draft to the provider you configure when you press Generate. Voice uses your phone’s speech service and may process audio online unless you choose On-device only. Recording starts only when you tap the microphone. Test fields are cleared when this screen closes.</string>
     <string name="typing_help">Tap Shift for one capital. Tap it again or hold it for Caps Lock. Hold Backspace to repeat. Use ?123 and =\&lt; for numbers and symbols. Android’s Back gesture hides the keyboard.</string>
-    <string name="version_label">0.7.0 · Integrated tools and themes · Android 8+</string>
+    <string name="version_label">%1$s · Integrated tools and themes · Android 8+</string>
     <string name="hold_delay_title">Hold Backspace to repeat after</string>
     <string name="hold_fast">200 ms · Quick</string>
     <string name="hold_normal">400 ms · Normal</string>

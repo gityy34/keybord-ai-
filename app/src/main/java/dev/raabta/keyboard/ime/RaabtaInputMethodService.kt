@@ -16,6 +16,7 @@ import dev.raabta.keyboard.R
 import dev.raabta.keyboard.voice.*
 import dev.raabta.keyboard.ui.Palette
 import dev.raabta.keyboard.ui.KeyboardOptions
+import dev.raabta.keyboard.ui.appVersionName
 import dev.raabta.keyboard.setup.OptionalPermissionActivity
 import android.os.Handler
 import android.os.Looper
@@ -771,7 +772,7 @@ class RaabtaInputMethodService : InputMethodService() {
             "ai:clear" -> AiConnection(this).clear()
             "permissions" -> startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,"package:$packageName".toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             "share" -> startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                type="text/plain"; putExtra(Intent.EXTRA_TEXT,"Raabta Keyboard: https://github.com/gityy34/keybord-ai-/tree/apk-polish-0.7.0")
+                type="text/plain"; putExtra(Intent.EXTRA_TEXT,"Raabta Keyboard v${appVersionName()}: https://github.com/gityy34/keybord-ai-/releases/tag/v${appVersionName()}")
             },"Share Raabta").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             else -> if(name.startsWith("edit:")) {
                 val connection=currentInputConnection

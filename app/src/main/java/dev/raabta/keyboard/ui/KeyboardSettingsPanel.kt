@@ -104,7 +104,7 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
                 row("Clear dictionary and recent emoji", "Also clears learned words and current clipboard previews.") { options.clearLocalData(); action("clear"); changed(); navigate(page) }
                 row("App permissions", "Manage microphone, optional contacts and screenshot access in Android.") { action("permissions") }
             }
-            "About" -> note("Raabta Keyboard 0.7.0\nLocal typing and suggestions; optional system voice recognition.\nMore → Settings opens full-screen settings; Back returns to your app.\nAI tools use your chosen provider. Android permission screens are system dialogs.")
+            "About" -> note("Raabta Keyboard ${context.appVersionName()}\nLocal typing and suggestions; optional system voice recognition.\nMore → Settings opens full-screen settings; Back returns to your app.\nAI tools use your chosen provider. Android permission screens are system dialogs.")
             "Help and feedback" -> note("Space: tap to insert a space; slide to move the cursor.\nHold a letter for its symbol.\nTap a suggestion to insert it; emoji do not replace your word.\nUrdu voice: use Urdu-only mode for mostly Urdu phrases.\nImage paste requires an app that accepts image content.\nReport issues with the app, Android version and steps to reproduce.")
         }
     }

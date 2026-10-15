@@ -11,6 +11,7 @@ import android.widget.Toast
 import dev.raabta.keyboard.ui.KeyboardSettingsPanel
 import dev.raabta.keyboard.ui.KeyboardOptions
 import dev.raabta.keyboard.ui.Palette
+import dev.raabta.keyboard.ui.appVersionName
 import dev.raabta.keyboard.ime.LearnedWords
 import dev.raabta.keyboard.tools.*
 
@@ -78,7 +79,7 @@ class KeyboardSettingsActivity:Activity() {
                 }.setNegativeButton("Cancel",null).show()
             }
             value=="share" -> startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                type="text/plain"; putExtra(Intent.EXTRA_TEXT,"Raabta Keyboard: https://github.com/gityy34/keybord-ai-/tree/apk-polish-0.7.0")
+                type="text/plain"; putExtra(Intent.EXTRA_TEXT,"Raabta Keyboard v${appVersionName()}: https://github.com/gityy34/keybord-ai-/releases/tag/v${appVersionName()}")
             },"Share Raabta"))
             else -> AlertDialog.Builder(this).setMessage("Use this tool from the Raabta keyboard toolbar while editing text.").setPositiveButton("OK",null).show()
         }
