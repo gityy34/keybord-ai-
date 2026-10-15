@@ -1,0 +1,6 @@
+<resources>
+    <item name="test_message" type="id" />
+    <item name="test_search" type="id" />
+    <item name="test_number" type="id" />
+    <item name="test_password" type="id" />
+</resources>
