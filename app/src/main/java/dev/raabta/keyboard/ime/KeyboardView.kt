@@ -47,6 +47,13 @@ sealed interface Key {
     data class Mode(val mode: KeyboardMode) : Key
 }
 
+/** Layout constants shared by the IME surface and inset regression tests. */
+internal object KeyboardInsetMetrics {
+    const val OUTER_GAP_DP = 8
+    fun bottomSpacerPx(density: Float, navigationInsetPx: Int): Int =
+        (OUTER_GAP_DP * density + 0.5f).toInt() + navigationInsetPx.coerceAtLeast(0)
+}
+
 /** Native buttons provide accessibility semantics and avoid a custom text-rendering engine. */
 class KeyboardView @JvmOverloads constructor(
     context: Context,
@@ -95,6 +102,12 @@ class KeyboardView @JvmOverloads constructor(
     private val palette = Palette.from(context)
     private val feedback = KeyFeedback(context, preferences)
     private val content = LinearLayout(context)
+    private val bottomSafeSpacer = View(context).apply {
+        tag = "KeyboardBottomSafeSpacer"
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        isClickable = false
+        isFocusable = false
+    }
     private val rows = LinearLayout(context)
     private val letterButtons = mutableListOf<Pair<Button, String>>()
     private var shiftButton: Button? = null
@@ -131,15 +144,20 @@ class KeyboardView @JvmOverloads constructor(
         gravity = Gravity.CENTER_HORIZONTAL
         layoutDirection = View.LAYOUT_DIRECTION_LTR
         background = palette.backgroundDrawable()
-        // Keep a small, stable breathing room above the system navigation bar.  The
-        // insets listener below adds the device-specific navigation inset on top of it.
-        setPadding(context.dp(3), context.dp(3), context.dp(3), context.dp(8))
+        // Keep a stable breathing room above the system navigation bar. The spacer
+        // is a separate child, so the blank area cannot dispatch key touches.
+        setPadding(context.dp(3), context.dp(KeyboardInsetMetrics.OUTER_GAP_DP), context.dp(3), 0)
         content.orientation = VERTICAL
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(bottomSafeSpacer, LayoutParams(LayoutParams.MATCH_PARENT, context.dp(KeyboardInsetMetrics.OUTER_GAP_DP)))
         setOnApplyWindowInsetsListener { _, insets ->
             val bottom = if (Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.navigationBars()).bottom
             else { @Suppress("DEPRECATION") insets.systemWindowInsetBottom }
-            setPadding(context.dp(3), context.dp(3), context.dp(3), context.dp(8) + bottom)
+            setPadding(context.dp(3), context.dp(KeyboardInsetMetrics.OUTER_GAP_DP), context.dp(3), 0)
+            bottomSafeSpacer.layoutParams = bottomSafeSpacer.layoutParams.apply {
+                height = KeyboardInsetMetrics.bottomSpacerPx(resources.displayMetrics.density, bottom)
+            }
+            bottomSafeSpacer.requestLayout()
             insets
         }
         val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; isBaselineAligned=false }

@@ -2,6 +2,7 @@ package dev.raabta.keyboard.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Color
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -39,40 +40,52 @@ class ToolsPanel @JvmOverloads constructor(
     private val toolAction = action
     init {
         orientation = VERTICAL; tag = "SettingsPanel"; background = palette.backgroundDrawable()
-        val heading = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
+        val heading = LinearLayout(context).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(context.dp(8), context.dp(4), context.dp(8), context.dp(4))
+            tag = "ToolsHeader"
+        }
         heading.addView(ToolbarButton(context).apply {
             text = "‹"; tag = "SettingsBack"; contentDescription = "Back to keyboard"
-            setTextColor(palette.text); background = palette.pressed(radius=context.dp(10).toFloat()); setOnClickListener { back() }
+            setTextColor(palette.text); background = palette.pressed(radius=context.dp(12).toFloat()); setOnClickListener { back() }
         }, LayoutParams(context.dp(48),context.dp(48)))
-        heading.addView(TextView(context).apply { setText(R.string.tools_menu_title); textSize=18f; setTextColor(palette.text) },LayoutParams(0,LayoutParams.WRAP_CONTENT,1f))
+        heading.addView(TextView(context).apply {
+            setText(R.string.tools_menu_title); textSize=19f; setTextColor(palette.text)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(context.dp(8), 0, context.dp(8), 0)
+        },LayoutParams(0,LayoutParams.WRAP_CONTENT,1f))
         val resetButton = ToolbarButton(context).apply {
             text = "↺"; tag = "ToolsReset"; contentDescription = "Reset tool layout"
-            setTextColor(palette.text); background = palette.toolbarBackground(0, false, context.dp(10).toFloat())
+            caption = null
+            setTextColor(palette.icon(0)); background = palette.toolbarBackground(0, false, context.dp(12).toFloat())
             setOnClickListener { toolAction("tools:reset") }
         }
-        heading.addView(resetButton, LayoutParams(context.dp(44), context.dp(48)))
+        heading.addView(resetButton, LayoutParams(context.dp(46), context.dp(46)).apply { setMargins(context.dp(2), 0, context.dp(2), 0) })
         heading.addView(ToolbarButton(context).apply {
             text = "⌕"; tag = "ToolsSearch"; contentDescription = "Search settings"
-            setTextColor(palette.text); background = palette.toolbarBackground(0, false, context.dp(10).toFloat())
+            caption = null
+            setTextColor(palette.icon(1)); background = palette.toolbarBackground(1, false, context.dp(12).toFloat())
             setOnClickListener { toolAction("settings:search") }
-        }, LayoutParams(context.dp(44), context.dp(48)))
+        }, LayoutParams(context.dp(46), context.dp(46)).apply { setMargins(context.dp(2), 0, context.dp(2), 0) })
         editButton = ToolbarButton(context).apply {
             text = "✎"; tag = "ToolsEdit"; contentDescription = "Edit tool order"
-            setTextColor(palette.text)
-            background = palette.toolbarBackground(0, false, context.dp(10).toFloat())
+            caption = null
+            setTextColor(palette.icon(2))
+            background = palette.toolbarBackground(2, false, context.dp(12).toFloat())
             setOnClickListener {
                 editing = !editing
                 isSelected = editing
-                setTextColor(if (editing) palette.onAccent else palette.text)
-                background = palette.toolbarBackground(0, editing, context.dp(10).toFloat())
+                setTextColor(if (editing) palette.onAccent else palette.icon(2))
+                background = palette.toolbarBackground(2, editing, context.dp(12).toFloat())
                 populate(toolAction)
             }
         }
-        heading.addView(editButton, LayoutParams(context.dp(48), context.dp(48)))
+        heading.addView(editButton, LayoutParams(context.dp(46), context.dp(46)).apply { setMargins(context.dp(2), 0, 0, 0) })
         addView(heading)
         val toolbarPreview = HorizontalScrollView(context).apply {
             tag = "ToolbarPreview"
             isHorizontalScrollBarEnabled = false
+            setPadding(context.dp(8), context.dp(2), context.dp(8), context.dp(2))
             addView(LinearLayout(context).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 order.toolbar().forEachIndexed { index, tool ->
@@ -85,8 +98,11 @@ class ToolsPanel @JvmOverloads constructor(
                 }
             })
         }
-        addView(toolbarPreview, LayoutParams(LayoutParams.MATCH_PARENT, context.dp(44)))
-        grid.apply { orientation=VERTICAL; clipChildren=false; setPadding(context.dp(6),0,context.dp(6),context.dp(6)); tag="ToolsGrid" }
+        addView(toolbarPreview, LayoutParams(LayoutParams.MATCH_PARENT, context.dp(48)))
+        grid.apply {
+            orientation=VERTICAL; clipChildren=false
+            setPadding(context.dp(8), context.dp(4), context.dp(8), context.dp(10)); tag="ToolsGrid"
+        }
         scroller = ScrollView(context).apply { tag="ToolsScroll"; addView(grid) }
         addView(scroller,LayoutParams(LayoutParams.MATCH_PARENT,0,1f))
         populate(action)
@@ -112,27 +128,30 @@ class ToolsPanel @JvmOverloads constructor(
     private fun populate(action: (String) -> Unit) {
         val previousScroll = if (::scroller.isInitialized) scroller.scrollY else 0
         grid.removeAllViews(); historyButtons.clear(); tileViews.clear(); dragOrigins.clear()
-        order.more().chunked(3).forEachIndexed { rowIndex, tools ->
+        order.more().chunked(2).forEachIndexed { rowIndex, tools ->
             val row=LinearLayout(context).apply { isBaselineAligned=false; clipChildren=false; tag="ToolRow:$rowIndex" }
             tools.forEachIndexed { column,tool ->
                 val tile=LinearLayout(context).apply {
-                    orientation=VERTICAL; gravity=Gravity.CENTER; isClickable=true; isFocusable=true
+                    orientation=HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; isClickable=true; isFocusable=true
                     tag="settings:${tool.id}"; contentDescription=tool.label
-                    background=palette.pressed(if (editing) palette.surface else palette.background, context.dp(12).toFloat())
-                    scaleX=if(editing) 0.98f else 1f; scaleY=if(editing) 0.98f else 1f
+                    setPadding(context.dp(12), context.dp(8), context.dp(12), context.dp(8))
+                    background=toolCardBackground()
+                    scaleX=if(editing) 0.985f else 1f; scaleY=if(editing) 0.985f else 1f
                     addView(ImageView(context).apply {
                         setImageDrawable(AppCompatResources.getDrawable(context,icon(tool)))
-                        imageTintList=android.content.res.ColorStateList.valueOf(palette.icon(rowIndex*3+column))
+                        imageTintList=android.content.res.ColorStateList.valueOf(toolIconColor(rowIndex*2+column))
                         importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                    },LayoutParams(context.dp(25),context.dp(25)))
+                        setPadding(context.dp(2), context.dp(2), context.dp(2), context.dp(2))
+                    },LayoutParams(context.dp(46),context.dp(46)))
                     addView(TextView(context).apply {
-                        text=tool.label; textSize=12f; maxLines=2; gravity=Gravity.CENTER; setTextColor(palette.text)
-                        setPadding(context.dp(2),context.dp(5),context.dp(2),0)
+                        text=tool.label; textSize=14f; maxLines=2; gravity=Gravity.CENTER_VERTICAL; setTextColor(palette.text)
+                        setPadding(context.dp(8), 0, context.dp(4), 0)
+                        layoutParams=LayoutParams(0,LayoutParams.WRAP_CONTENT,1f)
                     })
                     if (editing) addView(TextView(context).apply {
-                        text = "⋮⋮"; textSize = 12f; gravity = Gravity.CENTER; setTextColor(palette.muted)
+                        text = "⋮⋮"; textSize = 14f; gravity = Gravity.CENTER; setTextColor(palette.muted)
                         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                    })
+                    },LayoutParams(context.dp(18),LayoutParams.MATCH_PARENT))
                     setOnClickListener { if (!editing) action(tool.command) }
                     setOnLongClickListener { view ->
                         if (!editing) {
@@ -149,13 +168,27 @@ class ToolsPanel @JvmOverloads constructor(
                 }
                 if(tool.command=="edit:undo" || tool.command=="edit:redo") historyButtons[tool.command]=tile
                 tileViews[tool.id]=tile
-                row.addView(tile,LayoutParams(0,context.dp(80),1f).apply { setMargins(context.dp(3),context.dp(3),context.dp(3),context.dp(3)) })
+                row.addView(tile,LayoutParams(0,context.dp(78),1f).apply { setMargins(context.dp(4),context.dp(4),context.dp(4),context.dp(4)) })
             }
-            repeat(3-tools.size) { row.addView(View(context),LayoutParams(0,context.dp(80),1f)) }
+            repeat(2-tools.size) { row.addView(View(context),LayoutParams(0,context.dp(78),1f).apply { setMargins(context.dp(4),context.dp(4),context.dp(4),context.dp(4)) }) }
             grid.addView(row)
         }
         historyAvailability(undoAvailable,redoAvailable)
         if (previousScroll > 0) scroller.post { scroller.scrollTo(0, previousScroll) }
+    }
+
+    /** Wide reference-style cards keep the existing command and drag targets. */
+    private fun toolCardBackground(): android.graphics.drawable.Drawable =
+        palette.pressed(palette.surface, context.dp(16).toFloat())
+
+    /** Solid dark cards use white line art; light and neon styles retain accents. */
+    private fun toolIconColor(index: Int): Int = when {
+        palette.style == SurfaceStyle.GLASS -> palette.icon(index)
+        palette.dark -> palette.text
+        else -> listOf(
+            palette.accent, palette.secondary, Color.rgb(24, 125, 188),
+            Color.rgb(42, 138, 88), Color.rgb(188, 104, 34), palette.text
+        )[index.mod(6)]
     }
     @SuppressLint("ClickableViewAccessibility")
     private fun attachGridReorderTouch(tile:View, id:String) {

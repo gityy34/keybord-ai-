@@ -41,7 +41,7 @@ class PolishLayoutTest {
             val view=keyboard(theme); layout(view); val height=view.height; screenshot(view,"${theme.name}-keys")
             val palette=Palette.from(context); assertEquals(palette.onAccent,view.findViewWithTag<TextView>("Enter").currentTextColor)
             view.showSettings("Tools"); layout(view); assertEquals(height,view.height); screenshot(view,"${theme.name}-tools")
-            val row=view.findViewWithTag<ViewGroup>("ToolRow:0"); assertEquals(3,row.childCount)
+            val row=view.findViewWithTag<ViewGroup>("ToolRow:0"); assertEquals(2,row.childCount)
             assertEquals(row.getChildAt(0).width,row.getChildAt(1).width)
             view.showWritingTool("ai","ur","en","polite"); view.updateWritingTool("Draft","First option","Review your result.",false,listOf("First option","Second option","Third option"))
             layout(view); assertEquals(height,view.height); assertNotNull(view.findViewWithTag<View>("ResultCard:2")); screenshot(view,"${theme.name}-results")

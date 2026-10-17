@@ -109,12 +109,43 @@ class KeyboardSettingsPanel @JvmOverloads constructor(
         }
     }
     private fun home() {
+        // Keep the home page passive: the launcher is visible but never focuses
+        // an EditText or opens the keyboard until the user taps it.
+        body.addView(settingsSearchLauncher())
         listOf("Connections" to "Active provider, model, real connection test and encrypted key", "AI" to "Writing tools and provider controls", "Voice" to "Recording and recognition", "Appearance" to "Theme, keys and size", "Advanced" to "Gestures and dictionary", "Languages" to "English, Urdu and Roman Urdu", "Preferences" to "Keys, size, layout, shortcuts and feedback",
             "Theme" to "Standard themes, Neon Orbit, Paper White, Spectrum and imports", "Corrections and suggestions" to "Local words, emoji and correction controls",
             "Glide typing" to "Slide typing and Space cursor control", "Voice typing" to "Languages, Stop and long-pause behaviour",
             "Clipboard" to "Copied text, images and extracted items", "Dictionary" to "Your explicitly saved words",
             "Emojis, stickers and GIFs" to "Emoji rows, size and suggestions", "Privacy" to "Local data and permissions",
             "Writing tools" to "Translation, Roman Urdu and optional AI connection", "About" to "Version and app information", "Help and feedback" to "Usage and troubleshooting").forEach { (title, detail) -> row(title, detail) { navigate(title) } }
+    }
+    private fun settingsSearchLauncher(): View = LinearLayout(context).apply {
+        tag = "SettingsSearchLauncher"
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        isClickable = true
+        isFocusable = true
+        contentDescription = "Search settings"
+        background = palette.pressed(palette.surface, context.dp(12).toFloat())
+        setPadding(context.dp(10), context.dp(4), context.dp(14), context.dp(4))
+        addView(dev.raabta.keyboard.ime.ToolbarButton(context).apply {
+            text = "⌕"
+            caption = null
+            tag = "SettingsSearchIcon"
+            setTextColor(palette.icon(0))
+            background = null
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LayoutParams(context.dp(46), context.dp(46)))
+        addView(TextView(context).apply {
+            setText(R.string.settings_search_hint)
+            textSize = 14f
+            setTextColor(palette.muted)
+            gravity = Gravity.CENTER_VERTICAL
+        }, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+        setOnClickListener { navigate("Search") }
+        layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, context.dp(50)).apply {
+            setMargins(0, context.dp(10), 0, context.dp(8))
+        }
     }
     private fun settingsSearch() {
         section("Search settings")

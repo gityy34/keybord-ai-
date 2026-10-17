@@ -123,6 +123,7 @@
     <string name="connection_summary">Active AI provider: %1$s\nSaved provider: %2$s\nCurrent model: %3$s\nConnection type: HTTPS · Key / backend\nStatus: %4$s\nKey: %5$s</string>
     <string name="connection_no_browser">Open console.groq.com/keys in your browser to create your own developer key.</string>
     <string name="tools_menu_title">Tools</string>
+    <string name="settings_search_hint">Search settings</string>
     <string name="menu_choice_selected">%1$s ✓</string>
     <string name="voice_starting">Starting microphone…</string>
     <string name="resize_keyboard">Resize keyboard</string>

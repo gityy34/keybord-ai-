@@ -76,6 +76,13 @@ private object ThemeCatalog {
     fun builtIns(phoneDark: Boolean) = KeyboardTheme.entries.filter { it != KeyboardTheme.CUSTOM }.map {
         ThemePreset(it.name, it.label, Palette.forTheme(it, phoneDark), "Default", it)
     }
+
+    /** The three reference layouts are kept together so users can find them immediately. */
+    fun referenceStyles() = listOf(
+        ThemePreset("reference-black", "Solid Black", Palette.forTheme(KeyboardTheme.DARK), "Reference"),
+        ThemePreset("reference-white", "Solid White", Palette.forTheme(KeyboardTheme.CLOUD), "Reference"),
+        ThemePreset("reference-neon", "Neon Reference", Palette.forTheme(KeyboardTheme.GLASS), "Reference"),
+    )
 }
 
 /** Settings theme browser with real keyboard previews and an apply/cancel detail state. */
@@ -111,6 +118,8 @@ class ThemePicker @JvmOverloads constructor(
         addView(section("My themes"))
         addView(myThemes(palette))
         selected?.let { addView(detail(it), 2) }
+        addView(section("Reference styles"))
+        addView(grid(ThemeCatalog.referenceStyles(), 128).apply { tag = "ReferenceThemes" })
         addView(section("Default"))
         addView(grid(ThemeCatalog.builtIns(palette.dark), 112))
         addView(section("Colours", true)); addView(grid(ThemeCatalog.colours, 112))
@@ -156,7 +165,7 @@ class ThemePicker @JvmOverloads constructor(
             card.addView(TextView(context).apply { text = "+"; textSize = 43f; setTextColor(palette.accent); gravity = Gravity.CENTER }, LayoutParams(LayoutParams.MATCH_PARENT, context.dp(height)))
             card.addView(TextView(context).apply { text = "Add"; textSize = 12f; setTextColor(palette.text); gravity = Gravity.CENTER })
         } else {
-            card.tag = "choice:Theme:${preset.builtIn?.ordinal ?: KeyboardTheme.CUSTOM.ordinal}"
+            card.tag = "choice:Theme:${preset.builtIn?.ordinal ?: preset.id}"
             card.isSelected = active(preset)
             card.contentDescription = "${preset.name}${if (card.isSelected) ", selected" else ""}"
             card.addView(MiniKeyboardPreview(context, preset.palette).apply { tag = "ThemePreview:${preset.builtIn?.name ?: preset.name}" }, LayoutParams(LayoutParams.MATCH_PARENT, context.dp(height)))
