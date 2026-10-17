@@ -69,7 +69,7 @@ class KeyboardCustomizationTest {
     }
 
     @Test @Config(qualifiers = "w320dp-h640dp-port") fun portraitNumberRowFitsAndLiveHeightScaleChangesMeasuredKeyboard() {
-        val heights = listOf(75, 100, 135).map { scale ->
+        val heights = listOf(KeyboardOptions.HEIGHT_SCALE_MIN, 100, KeyboardOptions.HEIGHT_SCALE_MAX).map { scale ->
             context.getSharedPreferences("keyboard_options", 0).edit().putInt("height_scale", scale).commit()
             KeyboardPreferences.save(context, KeyboardPreferences(numberRow = true))
             val commands = mutableListOf<dev.raabta.keyboard.ime.Key>()

@@ -219,8 +219,11 @@ class AdvancedKeyboardTest {
         click("Tools"); click("settings:Resize")
         val slider=view.findViewWithTag<SeekBar>("ResizeSlider")
         assertNotNull(slider)
-        slider.progress=60
-        assertEquals(135,KeyboardOptions(service).number("height_scale"))
+        assertEquals(KeyboardOptions.HEIGHT_SCALE_MAX-KeyboardOptions.HEIGHT_SCALE_MIN, slider.max)
+        slider.progress=slider.max
+        assertEquals(KeyboardOptions.HEIGHT_SCALE_MAX,KeyboardOptions(service).number("height_scale"))
+        slider.progress=0
+        assertEquals(KeyboardOptions.HEIGHT_SCALE_MIN,KeyboardOptions(service).number("height_scale"))
         click("ResizeDone")
         assertNull(view.findViewWithTag<View>("ResizePanel"))
     }

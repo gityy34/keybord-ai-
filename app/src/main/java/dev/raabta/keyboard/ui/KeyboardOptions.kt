@@ -27,6 +27,9 @@ class KeyboardOptions(context: Context) {
     }
     fun clearLocalData() { store.edit { remove("dictionary").remove("emoji_recent") } }
     companion object {
+        /** The reference keyboard is the 100% baseline; never shrink below 96%. */
+        const val HEIGHT_SCALE_MIN = 96
+        const val HEIGHT_SCALE_MAX = 150
         val defaults = mapOf(
             "clipboard_enabled" to true, "emoji_key" to true, "language_key" to true, "comma_key" to true, "full_stop_key" to true,
             "suggestion_strip" to true, "word_suggestions" to true, "next_word" to true,
@@ -42,6 +45,7 @@ class KeyboardOptions(context: Context) {
         val numbers = mapOf("font_size" to (22 to 16..32), "emoji_size" to (26 to 18..40),
             "hold_duration" to (400 to 200..800), "flick_sensitivity" to (24 to 12..48),
             "sound_volume" to (50 to 0..100), "vibration_strength" to (40 to 1..100),
-            "typing_sensitivity" to (80 to 0..100), "suggestion_delay" to (8 to 0..200), "suggestion_count" to (3 to 2..4), "language" to (0 to 0..2), "one_handed" to (0 to 0..2), "height_scale" to (100 to 75..135))
+            "typing_sensitivity" to (80 to 0..100), "suggestion_delay" to (8 to 0..200), "suggestion_count" to (3 to 2..4), "language" to (0 to 0..2), "one_handed" to (0 to 0..2),
+            "height_scale" to (100 to HEIGHT_SCALE_MIN..HEIGHT_SCALE_MAX))
     }
 }

@@ -449,7 +449,7 @@ class KeyboardView @JvmOverloads constructor(
 
     private fun keyHeightBase(landscape:Boolean):Int {
         val base = if (landscape) 42 else 54
-        return context.dp((base * options.number("height_scale") / 100f).toInt().coerceIn(if(landscape) 34 else 42, if(landscape) 58 else 74))
+        return context.dp((base * options.number("height_scale") / 100f).toInt().coerceIn(if(landscape) 40 else 50, if(landscape) 64 else 82))
     }
     private fun shiftBackground(active:Boolean) = palette.keyBackground(KeySurface.FUNCTION, context.dp(11).toFloat())
 
@@ -790,8 +790,13 @@ class KeyboardView @JvmOverloads constructor(
         titleRow.addView(ctl("Cancel","ResizeCancel") { options.setNumber("height_scale",resizeOriginalScale); showSettings("") },LayoutParams(context.dp(78),context.dp(34)))
         titleRow.addView(ctl("Done","ResizeDone") { showSettings("") },LayoutParams(context.dp(70),context.dp(34)))
         controls.addView(titleRow)
-        controls.addView(SeekBar(context).apply { tag="ResizeSlider"; max=60; progress=options.number("height_scale")-75; progressTintList=ColorStateList.valueOf(palette.accent); thumbTintList=ColorStateList.valueOf(palette.accent); setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(bar:SeekBar?, progress:Int, fromUser:Boolean) { options.setNumber("height_scale",75+progress); render(enterLabel); requestLayout() }
+        controls.addView(SeekBar(context).apply {
+            tag="ResizeSlider"
+            max=KeyboardOptions.HEIGHT_SCALE_MAX-KeyboardOptions.HEIGHT_SCALE_MIN
+            progress=(options.number("height_scale")-KeyboardOptions.HEIGHT_SCALE_MIN).coerceIn(0,max)
+            progressTintList=ColorStateList.valueOf(palette.accent); thumbTintList=ColorStateList.valueOf(palette.accent)
+            setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar:SeekBar?, progress:Int, fromUser:Boolean) { options.setNumber("height_scale",KeyboardOptions.HEIGHT_SCALE_MIN+progress); render(enterLabel); requestLayout() }
             override fun onStartTrackingTouch(bar:SeekBar?)=Unit
             override fun onStopTrackingTouch(bar:SeekBar?)=Unit
         }) },LayoutParams(LayoutParams.MATCH_PARENT,context.dp(42)))
