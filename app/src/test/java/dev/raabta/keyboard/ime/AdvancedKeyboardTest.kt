@@ -108,6 +108,11 @@ class AdvancedKeyboardTest {
     @Test fun wordSuggestionReplacesOnlyCurrentPrefix() {
         type("hel"); update(); click("suggestion:hello"); assertEquals("hello",field.text.toString())
     }
+
+    @Test fun typedPrefixIsShownImmediatelyBeforeBackgroundPredictionCompletes() {
+        click("text:j"); click("text:i"); click("text:i")
+        assertNotNull("The typed word should not wait for the worker",view.findViewWithTag<View>("suggestion:jii"))
+    }
     @Test fun staleSuggestionCannotReplaceChangedSelection() {
         type("hel"); update()
         field.setSelection(0)
@@ -247,6 +252,7 @@ class AdvancedKeyboardTest {
         val kia=LocalSuggestions.candidates("kia",emptyList(),true,false,false,false,false,language=2,roman=true).map { it.text }
         assertTrue(kya.contains("kya")); assertTrue(kya.contains("kia"))
         assertTrue(kia.contains("kia")); assertTrue(kia.contains("kya"))
+        assertTrue(RomanUrdu.candidates("kyaa").contains("کیا"))
     }
 
     @Test fun changingNumberRowInFullSettingsPreservesEditorAndUpdatesKeyboardOnReturn() {

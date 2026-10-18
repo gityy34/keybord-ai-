@@ -27,9 +27,15 @@ class LearnedWords(context: Context) {
             }
         } catch (_: org.json.JSONException) { entries.clear() }
     }
+    /**
+     * Record a word only if the store has not been cleared since the caller
+     * queued the operation.  Learning is intentionally asynchronous so it
+     * must be able to discard stale writes after the user clears their data.
+     */
     @Synchronized
-    fun record(word: String, language: Int, selected: Boolean = false) {
+    fun record(word: String, language: Int, selected: Boolean = false, expectedVersion: Long? = null) {
         reload()
+        if (expectedVersion != null && store.getLong(VERSION_KEY, 0L) != expectedVersion) return
         if (!valid(word) || language !in 0..2) return
         val key = key(word, language)
         val old = entries.remove(key)
@@ -52,8 +58,25 @@ class LearnedWords(context: Context) {
     fun learned(): List<Entry> { reload(); val now=System.currentTimeMillis(); return entries.values.filter { it.count >= 3 || it.selected > 0 }.sortedByDescending { score(it, now, "", "") } }
     @Synchronized
     fun remove(word: String, language: Int) { entries.remove(key(word, language)); save() }
+    /** Monotonic token used to invalidate queued learning writes. */
+    fun version(): Long = store.getLong(VERSION_KEY, 0L)
+
+    /** Start a new IME service session and invalidate writes from an old one. */
     @Synchronized
-    fun clear() { entries.clear(); store.edit { clear() } }
+    fun beginSession(): Long {
+        val nextVersion = version() + 1L
+        entries.clear(); snapshot = ""
+        store.edit { putLong(VERSION_KEY, nextVersion) }
+        return nextVersion
+    }
+
+    @Synchronized
+    fun clear() {
+        entries.clear()
+        val nextVersion = store.getLong(VERSION_KEY, 0L) + 1L
+        store.edit { clear(); putLong(VERSION_KEY, nextVersion) }
+        snapshot = ""
+    }
     private fun score(entry: Entry, now: Long, prefix: String, normalized: String): Double {
         val recencyDays=((now-entry.lastUsed).coerceAtLeast(0L)/86_400_000.0)
         val recency=1.0/(1.0+recencyDays)
@@ -68,6 +91,7 @@ class LearnedWords(context: Context) {
     }
     private fun key(word: String, language: Int) = "$language:${word.lowercase(Locale.ROOT)}"
     companion object {
+        private const val VERSION_KEY = "generation"
         fun valid(word: String) = word.length in 2..40 && word.all {
             it.isLetter() || Character.getType(it) == Character.NON_SPACING_MARK.toInt()
         }

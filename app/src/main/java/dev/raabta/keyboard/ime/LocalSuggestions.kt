@@ -96,7 +96,20 @@ object LocalSuggestions {
         }
         return if(misses>path.length/2) 99 else misses*3 + kotlin.math.abs(word.length-path.length)
     }
-    fun romanKey(value:String) = compact(value.lowercase(Locale.ROOT).replace("aa","a").replace("ee","i").replace("oo","u").replace("ya","ia").replace("ky","ki"))
+    /**
+     * Compare Roman Urdu by a tolerant phonetic-ish key.  Users commonly type
+     * the same word as kya/kia/kyaa, main/mein, or pyar/pyaar.  The key is only
+     * used for the Roman Urdu language, so English spelling is unaffected.
+     */
+    fun romanKey(value:String): String {
+        var key=value.lowercase(Locale.ROOT)
+            .replace('’','\'')
+            .replace(Regex("[^a-z]"), "")
+        key=key.replace("ph","f").replace("aa","a").replace("ee","i").replace("ii","i")
+            .replace("oo","u").replace("uu","u").replace("ai","e").replace("ay","e")
+            .replace("ya","ia")
+        return compact(key)
+    }
     private fun romanPenalty(prefix:String,value:String,language:Int,roman:Boolean):Int = if(language==2 && roman && romanKey(value).startsWith(romanKey(prefix))) 0 else 1
     fun distance(a: String, b: String): Int {
         var row = IntArray(b.length + 1) { it }

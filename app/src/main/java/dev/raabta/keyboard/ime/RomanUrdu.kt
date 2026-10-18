@@ -12,7 +12,7 @@ object RomanUrdu {
         "ka" to "کا", "ki" to "کی", "ke" to "کے", "ko" to "کو", "se" to "سے", "par" to "پر",
         "aur" to "اور", "or" to "اور", "lekin" to "لیکن", "agar" to "اگر", "to" to "تو",
         "nahi" to "نہیں", "nahin" to "نہیں", "na" to "نہ", "ji" to "جی", "jee" to "جی",
-        "kya" to "کیا", "kyun" to "کیوں", "kyon" to "کیوں", "kaise" to "کیسے", "kab" to "کب",
+        "kya" to "کیا", "kia" to "کیا", "kyaa" to "کیا", "kyun" to "کیوں", "kyon" to "کیوں", "kaise" to "کیسے", "kab" to "کب",
         "acha" to "اچھا", "achha" to "اچھا", "accha" to "اچھا", "achi" to "اچھی", "theek" to "ٹھیک",
         "thik" to "ٹھیک", "bohat" to "بہت", "bahut" to "بہت", "buhat" to "بہت", "zyada" to "زیادہ",
         "kam" to "کم", "kaam" to "کام", "kar" to "کر", "karo" to "کرو", "karta" to "کرتا",
@@ -50,8 +50,11 @@ object RomanUrdu {
     fun candidates(prefix: String): List<String> {
         if (prefix.length < 2) return emptyList()
         val lower = prefix.lowercase(Locale.ROOT)
-        return (listOfNotNull(words[lower]) + words.asSequence().filter { it.key.startsWith(lower) }
-            .sortedBy { it.key.length }.map { it.value }.take(4).toList()).distinct().take(4)
+        val normalized = LocalSuggestions.romanKey(lower)
+        return (listOfNotNull(words[lower]) + words.asSequence()
+            .filter { it.key.startsWith(lower) || LocalSuggestions.romanKey(it.key).startsWith(normalized) }
+            .sortedWith(compareBy<Map.Entry<String,String>> { if (it.key.startsWith(lower)) 0 else 1 }.thenBy { it.key.length })
+            .map { it.value }.take(6).toList()).distinct().take(4)
     }
     fun convert(text: String): String = Regex("[A-Za-z]+").replace(text) { words[it.value.lowercase(Locale.ROOT)] ?: it.value }
 }

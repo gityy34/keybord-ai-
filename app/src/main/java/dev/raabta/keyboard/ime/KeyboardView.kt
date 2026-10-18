@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.content.res.ColorStateList
 import android.graphics.drawable.RippleDrawable
+import android.graphics.Rect
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
@@ -127,6 +128,8 @@ class KeyboardView @JvmOverloads constructor(
     private var navigationInsetPx = 0
     private val rows = LinearLayout(context)
     private val letterButtons = mutableListOf<Pair<Button, String>>()
+    /** Cached screen-space hit boxes used by glide typing. */
+    private val letterBounds = mutableListOf<Pair<String, Rect>>()
     private var shiftButton: Button? = null
     private var deleteButton: RepeatingDeleteButton? = null
     private var enterLabel = R.string.key_enter
@@ -297,9 +300,13 @@ class KeyboardView @JvmOverloads constructor(
     private fun updateToolbarReorder(button:Button, rawX:Float) {
         val source=toolbarDragId ?: return
         val scroller=toolbarScroller ?: return
+        val scrollDelta=(scroller.scrollX-toolbarDragStartScroll).toFloat()
         val headerLocation=IntArray(2); header?.getLocationOnScreen(headerLocation)
         val pointerInHeader=rawX-headerLocation[0]
-        val originalLeft=toolbarDragOrigins[source] ?: button.left
+        // Origins are frozen at drag start, while the horizontal scroller may
+        // auto-scroll near an edge.  Compensate for that scroll so the dragged
+        // item stays under the finger instead of visibly vibrating.
+        val originalLeft=(toolbarDragOrigins[source] ?: button.left)-scrollDelta
         button.translationX=pointerInHeader-toolbarGrabOffsetX-originalLeft
         val edge=context.dp(38)
         val localX=rawX-IntArray(2).also { scroller.getLocationOnScreen(it) }[0]
@@ -309,7 +316,7 @@ class KeyboardView @JvmOverloads constructor(
         }
         val target=toolOrder.toolbar().map(KeyboardTool::id).minByOrNull { id ->
             val view=toolbarButtons[id] ?: return@minByOrNull Float.MAX_VALUE
-            val origin=toolbarDragOrigins[id] ?: view.left
+            val origin=(toolbarDragOrigins[id] ?: view.left)-scrollDelta
             kotlin.math.abs(pointerInHeader-(origin+view.width/2f))
         } ?: source
         if(target!=toolbarDragTarget) {
@@ -405,6 +412,7 @@ class KeyboardView @JvmOverloads constructor(
         candidateSignature = emptyList()
         rows.removeAllViews()
         letterButtons.clear()
+        letterBounds.clear()
         gestureButtons.clear()
         shiftButton = null
         when (state.mode) {
@@ -530,13 +538,17 @@ class KeyboardView @JvmOverloads constructor(
                     else -> text
                 }
                 setOnClickListener {
-                    feedback.perform(this, when (key) {
+                    val feedbackKey = when (key) {
                         Key.Space -> FeedbackKey.SPACE
                         Key.Delete -> FeedbackKey.DELETE
                         Key.Enter -> FeedbackKey.ENTER
                         else -> FeedbackKey.STANDARD
-                    })
+                    }
+                    // Commit first.  Haptic/audio services are device Binder
+                    // calls and can occasionally take a frame; they must never
+                    // delay the editor operation that this touch represents.
                     onKey(key)
+                    feedback.perform(this, feedbackKey)
                 }
                 if (key == Key.Shift) {
                     shiftButton = this
@@ -693,10 +705,8 @@ class KeyboardView @JvmOverloads constructor(
             if(options.enabled("glide")) {
                 button.onCancel={ glidePath="" }
                 button.onGlideMove={ x,y ->
-                    val keyAt=letterButtons.firstOrNull { (v,_) ->
-                        val location=IntArray(2); v.getLocationOnScreen(location)
-                        x>=location[0] && x<location[0]+v.width && y>=location[1] && y<location[1]+v.height
-                    }?.second
+                    if (letterBounds.isEmpty()) updateLetterBounds()
+                    val keyAt=letterBounds.firstOrNull { (_,rect) -> rect.contains(x.toInt(),y.toInt()) }?.first
                     if(keyAt!=null && !glidePath.endsWith(keyAt)) glidePath+=keyAt
                 }
                 button.onGlideEnd={
@@ -708,6 +718,20 @@ class KeyboardView @JvmOverloads constructor(
                     if(value.length>1 && button.gestureTravelPx>=minimumTravel) { onKey(Key.Glide(value)); true } else false
                 }
             }
+        }
+    }
+
+    /**
+     * Refresh glide hit boxes once per layout instead of asking every key for
+     * its screen location on every MotionEvent.  The old approach performed a
+     * layout traversal for every sampled point and could starve fast typing.
+     */
+    private fun updateLetterBounds() {
+        letterBounds.clear()
+        letterButtons.forEach { (button,label) ->
+            val location=IntArray(2)
+            button.getLocationOnScreen(location)
+            letterBounds += label to Rect(location[0],location[1],location[0]+button.width,location[1]+button.height)
         }
     }
     fun showCandidates(candidates:List<Candidate>) {
@@ -732,7 +756,7 @@ class KeyboardView @JvmOverloads constructor(
             if(candidate!=null) {
                 button.text=candidate.label; button.tag="suggestion:${candidate.text}"
                 button.textSize=if(candidate.emoji) options.number("emoji_size").toFloat().coerceAtMost(32f) else 15f
-                button.setOnClickListener { feedback.perform(button); onCandidate(candidate) }
+                button.setOnClickListener { onCandidate(candidate); feedback.perform(button) }
             } else { button.text=""; button.tag=null; button.setOnClickListener(null) }
         }
     }
@@ -984,6 +1008,11 @@ class KeyboardView @JvmOverloads constructor(
             val desired=(resources.displayMetrics.heightPixels*0.65f).toInt().coerceAtLeast(measuredHeight)
             setMeasuredDimension(measuredWidth,if(MeasureSpec.getMode(heightMeasureSpec)==MeasureSpec.UNSPECIFIED) desired else desired.coerceAtMost(available))
         }
+    }
+
+    override fun onLayout(changed:Boolean,left:Int,top:Int,right:Int,bottom:Int) {
+        super.onLayout(changed,left,top,right,bottom)
+        if (changed || letterBounds.isEmpty()) updateLetterBounds()
     }
 
     override fun onDetachedFromWindow() {

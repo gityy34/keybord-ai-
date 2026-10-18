@@ -62,6 +62,7 @@ class RaabtaInputMethodService : InputMethodService() {
     private var awaitingVoicePermission = false
     private val options by lazy { KeyboardOptions(this) }
     private val learned by lazy { LearnedWords(this) }
+    @Volatile private var acceptingLearning = true
     private var learningBuffer=""
     private val deleteSelection=DeleteSelection()
     private var deleting=false
@@ -100,6 +101,10 @@ class RaabtaInputMethodService : InputMethodService() {
     private var screenshotSince=0L
     private var showing=false
     private var spaceTime=-1L
+    /** Local, non-persistent prefix used to show the typed candidate immediately. */
+    private var typedPrefix=""
+    /** Tracks whether the previous space followed a locally typed word. */
+    private var lastSpaceHadWord=false
     private var candidateBefore=""
     private var candidateGeneration=0
     private var hasTypedSinceStart=false
@@ -116,6 +121,13 @@ class RaabtaInputMethodService : InputMethodService() {
     private val voice by lazy {
         VoiceController(SpeechEngineFactory { speechEngineFactory.create(it) }, { keyboard?.setVoiceState(it) }, ::voiceError,
             { keyboard?.showVoicePreview(it) }, { VoiceSettings.pauseMillis(this) }, { VoiceSettings.finalWaitMillis(this) }, { keyboard?.setVoiceLevel(it) }, { keyboard?.voiceReady() })
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        // Invalidate work queued by an older IME instance before accepting new
+        // learning writes for this session.
+        learned.beginSession()
     }
 
     override fun onCreateInputView(): View = KeyboardView(
@@ -191,6 +203,7 @@ class RaabtaInputMethodService : InputMethodService() {
         val capsMode = currentInputConnection?.getCursorCapsMode(attribute.inputType) ?: 0
         state.reset(EditorPolicy.isNumeric(attribute), options.enabled("auto_capitalization") && capsMode != 0)
         candidateBefore=""; clipboard.clearPreview(); contactNames=emptyList(); spaceTime=-1
+        typedPrefix=""; lastSpaceHadWord=false
         hasTypedSinceStart=false
         keyboard?.showCandidates(emptyList())
         keyboard?.setTypingActive(false)
@@ -214,6 +227,13 @@ class RaabtaInputMethodService : InputMethodService() {
         when (key) {
             is Key.Text -> {
                 val displayed=state.display(key.text)
+                // Keep a small in-memory prefix for the current touch session.
+                // It is never persisted or sent anywhere, but lets the typed
+                // word appear in the first suggestion slot immediately while
+                // the richer prediction pass runs in the worker.
+                if (displayed.isNotEmpty() && displayed.all { it.isLetter() })
+                    typedPrefix=(typedPrefix+displayed).takeLast(64)
+                else typedPrefix=""
                 if(displayed.length==1 && displayed[0].isLetter() && canLearn()) {
                     // Keep this entirely local.  Reading the editor over Binder for
                     // every letter makes rapid typing contend with the next touch.
@@ -230,11 +250,12 @@ class RaabtaInputMethodService : InputMethodService() {
                 }
             }
             Key.Space -> if(connection!=null) {
-                if (richSpacingEnabled()) editHistory.transaction("spacing",connection) { space(connection) }
-                else space(connection)
+                val localWord=typedPrefix
+                if (richSpacingEnabled()) editHistory.transaction("spacing",connection) { space(connection,localWord) }
+                else space(connection,localWord)
             }
-            Key.Delete -> EditorCommands.delete(connection)
-            Key.Enter -> { learnBoundary(); EditorCommands.enter(connection, editor) }
+            Key.Delete -> { typedPrefix=""; lastSpaceHadWord=false; EditorCommands.delete(connection) }
+            Key.Enter -> { typedPrefix=""; lastSpaceHadWord=false; learnBoundary(); EditorCommands.enter(connection, editor) }
             Key.Emoji -> keyboard?.showEmojiPicker()
             Key.Language -> tool("language")
             is Key.DeleteSwipe -> {
@@ -246,7 +267,7 @@ class RaabtaInputMethodService : InputMethodService() {
                     deleting=false
                 }
             }
-            is Key.Cursor -> CursorNavigation.move(connection,key.steps)
+            is Key.Cursor -> { typedPrefix=""; lastSpaceHadWord=false; CursorNavigation.move(connection,key.steps) }
             is Key.Glide -> if(VoicePolicy.allows(editor)) glide(key.path, connection)
             Key.Shift -> {
                 val selected = try { connection?.getSelectedText(0)?.toString().orEmpty() } catch (_: RuntimeException) { "" }
@@ -265,17 +286,38 @@ class RaabtaInputMethodService : InputMethodService() {
                     state.toggleShift(); keyboard?.updateShift()
                 }
             }
-            is Key.Mode -> { state.selectMode(key.mode); keyboard?.render(EditorPolicy.enterLabel(editor)) }
+            is Key.Mode -> { typedPrefix=""; lastSpaceHadWord=false; state.selectMode(key.mode); keyboard?.render(EditorPolicy.enterLabel(editor)) }
         }
         if(key is Key.Text && key.text=="'" && options.enabled("apostrophe_space") && state.mode!=KeyboardMode.LETTERS) {
             state.selectMode(KeyboardMode.LETTERS); keyboard?.render(EditorPolicy.enterLabel(editor))
         }
         if(key!=Key.Space) spaceTime=-1
+        if (key is Key.Text && typedPrefix.isNotEmpty() && options.enabled("suggestion_strip")) {
+            keyboard?.setTypingActive(true)
+            keyboard?.showCandidates(listOf(Candidate(typedPrefix,typedPrefix,typedPrefix)))
+        }
         refreshSuggestions()
     }
 
     private fun richSpacingEnabled() = options.enabled("double_space") ||
         options.enabled("auto_correction") || options.enabled("spell_check") || options.enabled("grammar_check")
+
+    /**
+     * Cursor-capitalisation is useful feedback, but getCursorCapsMode is an
+     * editor IPC on many hosts.  Schedule it after the commit so a fast Space
+     * press is never held up by the host application.
+     */
+    private fun updateAutomaticShiftAsync(connection: android.view.inputmethod.InputConnection) {
+        if (!options.enabled("auto_capitalization") || state.shift == ShiftMode.LOCKED) return
+        val sequence = inputSequence
+        ui.post {
+            if (sequence != inputSequence || currentInputConnection !== connection || !VoicePolicy.allows(editor)) return@post
+            try {
+                state.setAutomaticShift(connection.getCursorCapsMode(editor.inputType) != 0)
+                keyboard?.updateShift()
+            } catch (_: RuntimeException) { }
+        }
+    }
 
     private fun glide(path: String, connection: android.view.inputmethod.InputConnection?) {
         val input = connection ?: return
@@ -303,7 +345,7 @@ class RaabtaInputMethodService : InputMethodService() {
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onFinishInput() {
-        voice.cancel(); closeWriting(); learningBuffer=""; deleteSelection.cancel(); deleting=false
+        voice.cancel(); closeWriting(); learningBuffer=""; typedPrefix=""; lastSpaceHadWord=false; deleteSelection.cancel(); deleting=false
         ++editorGeneration
         keyboard?.cancelRepeats()
         editor = EditorInfo()
@@ -320,6 +362,7 @@ class RaabtaInputMethodService : InputMethodService() {
     }
 
     override fun onDestroy() {
+        acceptingLearning=false
         voice.cancel()
         keyboard?.cancelRepeats()
         hideTools(); worker.shutdownNow(); mediaWorker.shutdownNow(); suggestionWorker.shutdownNow(); learningWorker.shutdownNow(); contactNames=emptyList()
@@ -337,6 +380,7 @@ class RaabtaInputMethodService : InputMethodService() {
         editHistory.selectionChanged(newSelStart,newSelEnd)
         if (oldSelStart != newSelStart || oldSelEnd != newSelEnd) {
             inputSequence++
+            typedPrefix=""; lastSpaceHadWord=false
             selectionCaseMode = 0
             voice.cancel(); refreshSuggestions()
             if(writingMode.isNotEmpty()) closeWriting()
@@ -412,8 +456,14 @@ class RaabtaInputMethodService : InputMethodService() {
         editor.inputType and android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS == 0 &&
         editor.inputType and android.text.InputType.TYPE_MASK_VARIATION !in listOf(android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, android.text.InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS, android.text.InputType.TYPE_TEXT_VARIATION_URI)
     private fun recordLearnedAsync(word:String, language:Int, selected:Boolean=false) {
-        if (!LearnedWords.valid(word)) return
-        try { learningWorker.execute { learned.record(word,language,selected) } } catch (_:RejectedExecutionException) { }
+        if (!acceptingLearning || !LearnedWords.valid(word)) return
+        // Capture the store generation before enqueueing.  A clear action from
+        // Settings increments it; queued writes from before that action then
+        // become no-ops instead of repopulating the just-cleared dictionary.
+        val version = learned.version()
+        try { learningWorker.execute {
+            if (acceptingLearning) learned.record(word,language,selected,expectedVersion=version)
+        } } catch (_:RejectedExecutionException) { }
     }
     private fun learnBoundary(context: String? = null) {
         val value=learningBuffer
@@ -681,6 +731,11 @@ class RaabtaInputMethodService : InputMethodService() {
         voice.cancel()
         if(!VoicePolicy.allows(editor) && !candidate.emoji) return
         if(SystemClock.uptimeMillis()>candidate.expiresAt) { clipboard.clearPreview(); refreshSuggestions(); return }
+        // Slot one mirrors the word currently being composed.  Selecting it
+        // should keep the existing text, never append a duplicate copy.
+        if (!candidate.emoji && candidate.replace.isNotEmpty() && candidate.text == candidate.replace) {
+            refreshSuggestions(); return
+        }
         val connection=currentInputConnection ?: return
         connection.beginBatchEdit()
         try {
@@ -692,10 +747,11 @@ class RaabtaInputMethodService : InputMethodService() {
                     keyboard?.showTextMessage("This app does not accept clipboard images here.")
             } else {
                 if(candidate.replace.isNotEmpty()) {
-                    if(candidateGeneration!=editorGeneration || before()!=candidateBefore || !before().endsWith(candidate.replace)) { updateSuggestions(); return }
+                    val context=before(connection)
+                    if(candidateGeneration!=editorGeneration || context!=candidateBefore || !context.endsWith(candidate.replace)) { updateSuggestions(); return }
                     if(!connection.deleteSurroundingText(candidate.replace.length,0)) return
                 }
-                val prefix=if(candidate.emoji && before().lastOrNull()?.isLetter()==true) " " else ""
+                val prefix=if(candidate.emoji && before(connection).lastOrNull()?.isLetter()==true) " " else ""
                 if(EditorCommands.type(connection,prefix+candidate.text) && candidate.emoji && VoicePolicy.allows(editor)) options.usedEmoji(candidate.text)
                 if(!candidate.emoji && canLearn() && LearnedWords.valid(candidate.text)) {
                     recordLearnedAsync(candidate.text, options.number("language"), selected = candidate.replace.isNotEmpty())
@@ -706,28 +762,29 @@ class RaabtaInputMethodService : InputMethodService() {
         } catch (_:RuntimeException) { keyboard?.showTextMessage("The editor or clipboard content is no longer available.") } finally { connection.endBatchEdit() }
         refreshSuggestions()
     }
-    private fun space(connection:android.view.inputmethod.InputConnection?) {
+    private fun space(connection:android.view.inputmethod.InputConnection?, localWord: String = "") {
         connection ?: return
+        // The keyboard already knows the word it just composed.  Prefer that
+        // local prefix and only read the editor when a feature genuinely needs
+        // surrounding context (grammar or a pre-existing word).
+        val value = (localWord.ifBlank { learningBuffer }).take(64)
+        learningBuffer=""
+        typedPrefix=""
         if (!richSpacingEnabled()) {
-            // The common path must do one editor commit only. Learning is local and
-            // can follow asynchronously; it must never make Space wait on a read.
-            val value=learningBuffer
-            learningBuffer=""
             if (canLearn() && LearnedWords.valid(value) && filtered(value)) recordLearnedAsync(value,options.number("language"))
             val time=SystemClock.uptimeMillis()
             if (EditorCommands.type(connection," ")) {
                 spaceTime=time
-                if(options.enabled("auto_capitalization") && state.shift!=ShiftMode.LOCKED) {
-                    state.setAutomaticShift(connection.getCursorCapsMode(editor.inputType)!=0); keyboard?.updateShift()
-                }
+                lastSpaceHadWord=value.isNotEmpty()
+                updateAutomaticShiftAsync(connection)
             }
             return
         }
-        val context=before()
-        // Reuse the context captured for this space press; avoid a second editor
-        // round-trip before the actual space is committed.
-        learnBoundary(context)
-        val word=LocalSuggestions.lastWord(context)
+        val needsContext = options.enabled("grammar_check") ||
+            (value.isEmpty() && (options.enabled("auto_correction") || options.enabled("spell_check")))
+        val context=if (needsContext) before(connection) else ""
+        val word=if(value.isNotEmpty()) value else LocalSuggestions.lastWord(context)
+        if (canLearn() && LearnedWords.valid(word) && filtered(word)) recordLearnedAsync(word,options.number("language"))
         if(VoicePolicy.allows(editor) && options.enabled("auto_correction")) {
             LocalSuggestions.corrections[word.lowercase()]?.let { replacement ->
                 if(connection.deleteSurroundingText(word.length,0)) EditorCommands.type(connection,LocalSuggestions.matchCase(word,replacement))
@@ -747,13 +804,13 @@ class RaabtaInputMethodService : InputMethodService() {
             }
         }
         val time=SystemClock.uptimeMillis()
-        if(options.enabled("double_space") && spaceTime>=0 && time-spaceTime<700 && context.endsWith(" ") && context.getOrNull(context.length-2)?.isLetterOrDigit()==true) {
+        if(options.enabled("double_space") && spaceTime>=0 && time-spaceTime<700 && lastSpaceHadWord) {
             if(connection.deleteSurroundingText(1,0)) EditorCommands.type(connection,if(options.number("language")==1) "۔ " else ". ")
-            spaceTime=-1
-        } else { EditorCommands.type(connection," "); spaceTime=time }
-        if(options.enabled("auto_capitalization") && state.shift!=ShiftMode.LOCKED) {
-            state.setAutomaticShift(connection.getCursorCapsMode(editor.inputType)!=0); keyboard?.updateShift()
+            spaceTime=-1; lastSpaceHadWord=false
+        } else if (EditorCommands.type(connection," ")) {
+            spaceTime=time; lastSpaceHadWord=word.isNotEmpty()
         }
+        updateAutomaticShiftAsync(connection)
     }
     private fun tool(name:String) {
         val wasListening = voice.active
@@ -930,7 +987,7 @@ class RaabtaInputMethodService : InputMethodService() {
         } } catch (_:java.util.concurrent.RejectedExecutionException) { current.findViewWithTag<View>("ConnectionTest")?.isEnabled=true; current.showTextMessage("Busy. Retry shortly.") }
     }
     private fun hideTools() {
-        showing=false; closeWriting(); learningBuffer=""; deleteSelection.cancel(); deleting=false; keyboard?.hideVoiceLanguages(); ui.removeCallbacks(suggestionUpdate); clipboard.clearPreview(); contactNames=emptyList()
+        showing=false; closeWriting(); learningBuffer=""; typedPrefix=""; lastSpaceHadWord=false; deleteSelection.cancel(); deleting=false; keyboard?.hideVoiceLanguages(); ui.removeCallbacks(suggestionUpdate); clipboard.clearPreview(); contactNames=emptyList()
         editHistory.clear(); voiceEditId=null
         try { getSystemService(ClipboardManager::class.java)?.removePrimaryClipChangedListener(clipboardListener); contentResolver.unregisterContentObserver(screenshotObserver) } catch (_:RuntimeException) { }
     }
