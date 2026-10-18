@@ -26,6 +26,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.util.ReflectionHelpers
 import java.time.Duration
+import java.util.concurrent.ThreadPoolExecutor
 
 @RunWith(org.robolectric.RobolectricTestRunner::class)
 @Config(sdk=[28])
@@ -53,7 +54,15 @@ class AdvancedKeyboardTest {
     @After fun close() { service.onDestroy() }
     private fun click(tag:String) { if(tag=="Settings") { view.findViewWithTag<View>("Tools").performClick(); view.findViewWithTag<View>("settings:Settings").performClick(); return }; val v=view.findViewWithTag<View>(tag); assertNotNull("Missing $tag",v); assertTrue(v.performClick()) }
     private fun type(text:String) { text.forEach { click(if(it==' ') "Space" else "text:$it") } }
-    private fun update() { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(60)) }
+    private fun update() {
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(60))
+        val executor=ReflectionHelpers.getField<ThreadPoolExecutor>(service,"suggestionWorker")
+        repeat(200) {
+            if (executor.activeCount==0 && executor.queue.isEmpty()) return@repeat
+            Thread.sleep(2)
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+    }
     private fun fullSettings():dev.raabta.keyboard.setup.KeyboardSettingsActivity {
         click("Settings")
         val intent=shadowOf(service).nextStartedActivity

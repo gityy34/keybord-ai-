@@ -57,8 +57,12 @@ class GestureKeyButton(context:Context) : KeyButton(context) {
             MotionEvent.ACTION_UP -> {
                 handler.removeCallbacks(held); handler.removeCallbacks(stationaryHold); isPressed=false; onPreview?.invoke(false)
                 val glide=if(!consumed && moved) onGlideEnd?.invoke()==true else false
-                if(!consumed && !glide && (!moved || (onMoveCursor!=null && kotlin.math.abs(event.y-y)<tapSlop*2))) performClick()
-                else if(!consumed && !glide && onGlideEnd==null && onMoveCursor==null) performClick()
+                // A small movement over touch-slop is still a tap when no valid
+                // multi-key glide was produced. The old branch dropped that tap,
+                // which is why fast adjacent letters could disappear.
+                val shortGlide = onGlideEnd != null && !glide
+                val cursorTap = onMoveCursor != null && kotlin.math.abs(event.y-y)<tapSlop*2
+                if(!consumed && !glide && (!moved || shortGlide || cursorTap || (onGlideEnd==null && onMoveCursor==null))) performClick()
             }
             MotionEvent.ACTION_CANCEL -> cancelGesture()
             else -> { if(event.pointerCount>1) cancelGesture() }

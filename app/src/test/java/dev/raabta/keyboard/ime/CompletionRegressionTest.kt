@@ -62,6 +62,14 @@ class CompletionRegressionTest {
     }
     @After fun close() { service.onDestroy(); PendingKeyboardTool.consume() }
     private fun click(tag:String) { val v=view.findViewWithTag<View>(tag); assertNotNull(tag,v); assertTrue(v.performClick()) }
+    private fun awaitSuggestions() {
+        val executor=ReflectionHelpers.getField<ThreadPoolExecutor>(service,"suggestionWorker")
+        repeat(200) {
+            if (executor.activeCount==0 && executor.queue.isEmpty()) return@repeat
+            Thread.sleep(2)
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+    }
     private fun configure(fake:Transport) {
         AiConnection(service).save("https://example.org/v1/chat/completions","test-model",null)
         service.aiRequestFactory={ AiRequest { fake } }
@@ -77,6 +85,13 @@ class CompletionRegressionTest {
             expected+=c; assertEquals(expected,field.text.toString())
         }
     }
+    @Test fun slightMovementOnSingleLetterStillCommitsTapInsteadOfDroppingIt() {
+        val key=view.findViewWithTag<View>("text:h")
+        key.dispatchTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,20f,20f,0))
+        key.dispatchTouchEvent(MotionEvent.obtain(0,4,MotionEvent.ACTION_MOVE,38f,20f,0))
+        key.dispatchTouchEvent(MotionEvent.obtain(0,8,MotionEvent.ACTION_UP,38f,20f,0))
+        assertEquals("h",field.text.toString())
+    }
     @Test fun sensitivityChangesTapThresholdAndResponseDelayDoesNotDelayTyping() {
         val options=KeyboardOptions(service)
         options.setNumber("typing_sensitivity",0); view=service.onCreateInputView() as KeyboardView
@@ -85,7 +100,7 @@ class CompletionRegressionTest {
         assertTrue(view.findViewWithTag<GestureKeyButton>("Space").tapSlop>small)
         click("text:h"); click("text:e"); assertEquals("he",field.text.toString())
         assertNull(view.findViewWithTag<View>("suggestion:heart"))
-        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(201)); assertNotNull(view.findViewWithTag<View>("suggestion:heart"))
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(201)); awaitSuggestions(); assertNotNull(view.findViewWithTag<View>("suggestion:heart"))
     }
     @Test fun clipboardTopSwitchClearsAndBlocksPreviewsUntilReenabled() {
         service.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("test","copied value"))

@@ -37,6 +37,8 @@ import android.text.style.SuggestionSpan
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.atomic.AtomicLong
 import java.util.Locale
 
 class RaabtaInputMethodService : InputMethodService() {
@@ -90,12 +92,16 @@ class RaabtaInputMethodService : InputMethodService() {
     private val ui=Handler(Looper.getMainLooper())
     private val mediaWorker=ThreadPoolExecutor(1,1,15,TimeUnit.SECONDS,ArrayBlockingQueue<Runnable>(4),ThreadPoolExecutor.AbortPolicy())
     private val worker=ThreadPoolExecutor(1,1,15,TimeUnit.SECONDS,ArrayBlockingQueue<Runnable>(1),ThreadPoolExecutor.DiscardOldestPolicy())
+    /** Prediction is isolated from contact/AI work and never runs on the IME thread. */
+    private val suggestionWorker=ThreadPoolExecutor(1,1,15,TimeUnit.SECONDS,ArrayBlockingQueue<Runnable>(1),ThreadPoolExecutor.DiscardOldestPolicy())
     private var contactNames=emptyList<String>()
     private var screenshotSince=0L
     private var showing=false
     private var spaceTime=-1L
     private var candidateBefore=""
     private var candidateGeneration=0
+    private var inputSequence=0L
+    private val suggestionSequence=AtomicLong()
     private val suggestionUpdate=Runnable { updateSuggestions() }
     private val clipboardListener=ClipboardManager.OnPrimaryClipChangedListener {
         if(showing && VoicePolicy.allows(editor) && options.enabled("clipboard_enabled")) { clipboard.refresh(newCopy=true); refreshSuggestions() }
@@ -178,6 +184,7 @@ class RaabtaInputMethodService : InputMethodService() {
         keyboard?.cancelRepeats()
         editor = attribute
         editHistory.clear(); rawEditor=null; trackedEditor=null; voiceEditId=null
+        inputSequence++
         val capsMode = currentInputConnection?.getCursorCapsMode(attribute.inputType) ?: 0
         state.reset(EditorPolicy.isNumeric(attribute), options.enabled("auto_capitalization") && capsMode != 0)
         candidateBefore=""; clipboard.clearPreview(); contactNames=emptyList(); spaceTime=-1
@@ -189,6 +196,9 @@ class RaabtaInputMethodService : InputMethodService() {
     }
 
     private fun handleKey(key: Key) {
+        // Any new key invalidates prediction work that is still in flight. The
+        // commit itself remains synchronous and is never queued behind prediction.
+        inputSequence++
         voice.cancel()
         if(writingMode.isNotEmpty()) { writingKey(key); return }
         if(key==Key.Emoji) learningBuffer=""
@@ -208,13 +218,16 @@ class RaabtaInputMethodService : InputMethodService() {
                     if(key.text in listOf(".",",","?","!","؟","،","۔")) learnBoundary()
                     learningBuffer=""
                 }
-                if (EditorCommands.type(connection, state.display(key.text) + if(VoicePolicy.allows(editor) && options.enabled("auto_space") && key.text in listOf(".",",","?","!","؟","،","۔")) " " else "")) {
+                if (EditorCommands.type(connection, displayed + if(VoicePolicy.allows(editor) && options.enabled("auto_space") && key.text in listOf(".",",","?","!","؟","،","۔")) " " else "")) {
                     val previousShift = state.shift
                     state.afterCharacter()
                     if (previousShift != state.shift) keyboard?.updateShift()
                 }
             }
-            Key.Space -> if(connection!=null) editHistory.transaction("spacing",connection) { space(connection) }
+            Key.Space -> if(connection!=null) {
+                if (richSpacingEnabled()) editHistory.transaction("spacing",connection) { space(connection) }
+                else space(connection)
+            }
             Key.Delete -> EditorCommands.delete(connection)
             Key.Enter -> { learnBoundary(); EditorCommands.enter(connection, editor) }
             Key.Emoji -> keyboard?.showEmojiPicker()
@@ -229,15 +242,7 @@ class RaabtaInputMethodService : InputMethodService() {
                 }
             }
             is Key.Cursor -> CursorNavigation.move(connection,key.steps)
-            is Key.Glide -> if(VoicePolicy.allows(editor)) {
-                val matches = LocalSuggestions.glideCandidates(key.path, options.dictionary(), if(canLearn()) learned.matches(key.path.take(2), options.number("language")) else emptyList(), options.number("language"), options.enabled("roman_suggestions"))
-                matches.firstOrNull()?.text?.let { word ->
-                    if(EditorCommands.type(connection,state.display(word))) {
-                        learningBuffer=word
-                        state.afterCharacter(); keyboard?.updateShift()
-                    }
-                }
-            }
+            is Key.Glide -> if(VoicePolicy.allows(editor)) glide(key.path, connection)
             Key.Shift -> {
                 val selected = try { connection?.getSelectedText(0)?.toString().orEmpty() } catch (_: RuntimeException) { "" }
                 if (selected.isNotEmpty() && VoicePolicy.allows(editor)) {
@@ -264,6 +269,32 @@ class RaabtaInputMethodService : InputMethodService() {
         refreshSuggestions()
     }
 
+    private fun richSpacingEnabled() = options.enabled("double_space") ||
+        options.enabled("auto_correction") || options.enabled("spell_check") || options.enabled("grammar_check")
+
+    private fun glide(path: String, connection: android.view.inputmethod.InputConnection?) {
+        val input = connection ?: return
+        val generation = editorGeneration
+        val sequence = inputSequence
+        val language = options.number("language")
+        val roman = options.enabled("roman_suggestions")
+        val dictionary = options.dictionary()
+        val learnedWords = if (canLearn()) learned.matches(path.take(2), language) else emptyList()
+        try {
+            suggestionWorker.execute {
+                val match = LocalSuggestions.glideCandidates(path, dictionary, learnedWords, language, roman)
+                    .firstOrNull()?.text ?: return@execute
+                ui.post {
+                    if (generation != editorGeneration || sequence != inputSequence || currentInputConnection !== input || !VoicePolicy.allows(editor)) return@post
+                    if (EditorCommands.type(input, state.display(match))) {
+                        learningBuffer=match
+                        state.afterCharacter(); keyboard?.updateShift(); refreshSuggestions()
+                    }
+                }
+            }
+        } catch (_:RejectedExecutionException) { }
+    }
+
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onFinishInput() {
@@ -286,7 +317,7 @@ class RaabtaInputMethodService : InputMethodService() {
     override fun onDestroy() {
         voice.cancel()
         keyboard?.cancelRepeats()
-        hideTools(); worker.shutdownNow(); mediaWorker.shutdownNow(); contactNames=emptyList()
+        hideTools(); worker.shutdownNow(); mediaWorker.shutdownNow(); suggestionWorker.shutdownNow(); contactNames=emptyList()
         keyboard = null
         super.onDestroy()
     }
@@ -300,6 +331,7 @@ class RaabtaInputMethodService : InputMethodService() {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
         editHistory.selectionChanged(newSelStart,newSelEnd)
         if (oldSelStart != newSelStart || oldSelEnd != newSelEnd) {
+            inputSequence++
             selectionCaseMode = 0
             voice.cancel(); refreshSuggestions()
             if(writingMode.isNotEmpty()) closeWriting()
@@ -585,28 +617,55 @@ class RaabtaInputMethodService : InputMethodService() {
         val delay = options.number("suggestion_delay").toLong()
         if (delay <= 0L) ui.post(suggestionUpdate) else ui.postDelayed(suggestionUpdate, delay)
     }
-    private fun filtered(value:String):Boolean = !options.enabled("offensive_filter") ||
+    private fun filtered(value:String, offensiveFilter:Boolean = options.enabled("offensive_filter")):Boolean = !offensiveFilter ||
         value.lowercase().split(Regex("[^\\p{L}]+" )).none { it in setOf("fuck","shit","bitch") }
     private fun updateSuggestions() {
         if(writingMode.isNotEmpty()) return
+        val connection=currentInputConnection
+        val generation=editorGeneration
+        val sequence=inputSequence
+        if(connection==null || !VoicePolicy.allows(editor) || editor.inputType and android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS!=0) {
+            suggestionSequence.incrementAndGet()
+            candidateBefore=""; candidateGeneration=generation; keyboard?.setTypingActive(false); keyboard?.showCandidates(emptyList()); return
+        }
+        // Keep the single editor read on the IME thread; dictionary, learning,
+        // clipboard and ranking work is moved off the critical input path.
         val context=before()
-        if(!VoicePolicy.allows(editor) || editor.inputType and android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS!=0) {
-            candidateBefore=""; keyboard?.setTypingActive(false); keyboard?.showCandidates(emptyList()); return
-        }
-        candidateBefore=context; candidateGeneration=editorGeneration
+        val serial=suggestionSequence.incrementAndGet()
+        val wordsEnabled=options.enabled("word_suggestions")
+        val nextEnabled=options.enabled("next_word")
+        val emojiEnabled=options.enabled("emoji_suggestions")
+        val grammarEnabled=options.enabled("grammar_check")
+        val smartReplies=options.enabled("smart_replies")
+        val contactsEnabled=options.enabled("contacts")
+        val clipboardEnabled=options.enabled("clipboard_suggestions")
+        val clipboardItems=options.enabled("clipboard_items")
+        val offensiveFilter=options.enabled("offensive_filter")
+        val language=options.number("language")
+        val roman=options.enabled("roman_suggestions")
+        val learn=canLearn()
+        val dictionary=if(wordsEnabled) options.dictionary() else emptyList()
+        val contactSnapshot=contactNames.toList()
         keyboard?.setTypingActive(context.isNotEmpty())
-        val values=LocalSuggestions.candidates(context,options.dictionary(),options.enabled("word_suggestions"),
-            options.enabled("next_word"),options.enabled("emoji_suggestions"),options.enabled("grammar_check"),options.enabled("smart_replies"),
-            if(canLearn()) learned.matches(LocalSuggestions.lastWord(context),options.number("language")) else emptyList(),
-            options.number("language"),options.enabled("roman_suggestions")).toMutableList()
-        val word=LocalSuggestions.lastWord(context)
-        if(options.enabled("contacts") && options.enabled("word_suggestions") && word.length>=2)
-            contactNames.asSequence().filter { it.startsWith(word,true) }.take(2).forEach { values.add(Candidate(it,it,word)) }
-        if(options.enabled("clipboard_suggestions")) {
-            val copied=clipboard.candidates(options.enabled("clipboard_items"))
-            if(word.isEmpty()) values.addAll(0,copied) else values.addAll(copied)
-        }
-        keyboard?.showCandidates(values.filter { filtered(it.text) })
+        try {
+            suggestionWorker.execute {
+                val word=LocalSuggestions.lastWord(context)
+                val values=LocalSuggestions.candidates(context,dictionary,wordsEnabled,nextEnabled,emojiEnabled,grammarEnabled,smartReplies,
+                    if(learn) learned.matches(word,language) else emptyList(),language,roman).toMutableList()
+                if(contactsEnabled && wordsEnabled && word.length>=2)
+                    contactSnapshot.asSequence().filter { it.startsWith(word,true) }.take(2).forEach { values.add(Candidate(it,it,word)) }
+                if(clipboardEnabled) {
+                    val copied=clipboard.candidates(clipboardItems)
+                    if(word.isEmpty()) values.addAll(0,copied) else values.addAll(copied)
+                }
+                val visibleValues=values.filter { filtered(it.text,offensiveFilter) }
+                ui.post {
+                    if(serial != suggestionSequence.get() || generation != editorGeneration || sequence != inputSequence || currentInputConnection !== connection || writingMode.isNotEmpty()) return@post
+                    candidateBefore=context; candidateGeneration=generation
+                    keyboard?.showCandidates(visibleValues)
+                }
+            }
+        } catch (_:RejectedExecutionException) { }
     }
     private fun chooseCandidate(candidate:Candidate) {
         voice.cancel()
@@ -639,6 +698,21 @@ class RaabtaInputMethodService : InputMethodService() {
     }
     private fun space(connection:android.view.inputmethod.InputConnection?) {
         connection ?: return
+        if (!richSpacingEnabled()) {
+            // The common path must do one editor commit only. Learning is local and
+            // can follow asynchronously; it must never make Space wait on a read.
+            val value=learningBuffer
+            learningBuffer=""
+            if (canLearn() && LearnedWords.valid(value) && filtered(value)) learned.record(value,options.number("language"))
+            val time=SystemClock.uptimeMillis()
+            if (EditorCommands.type(connection," ")) {
+                spaceTime=time
+                if(options.enabled("auto_capitalization") && state.shift!=ShiftMode.LOCKED) {
+                    state.setAutomaticShift(connection.getCursorCapsMode(editor.inputType)!=0); keyboard?.updateShift()
+                }
+            }
+            return
+        }
         val context=before()
         // Reuse the context captured for this space press; avoid a second editor
         // round-trip before the actual space is committed.

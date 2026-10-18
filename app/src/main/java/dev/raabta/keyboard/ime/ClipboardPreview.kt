@@ -13,7 +13,7 @@ class ClipboardPreview(private val context: Context, val history: ClipboardHisto
         private set
     private var currentSensitive = false
 
-    fun refresh(newCopy: Boolean = false) {
+    @Synchronized fun refresh(newCopy: Boolean = false) {
         if (!dev.raabta.keyboard.ui.KeyboardOptions(context).enabled("clipboard_enabled")) { clearPreview(); return }
         try {
             val clip = context.getSystemService(ClipboardManager::class.java)?.primaryClip ?: return
@@ -27,12 +27,12 @@ class ClipboardPreview(private val context: Context, val history: ClipboardHisto
             }
         } catch (_: RuntimeException) { lastSaveWorked = false }
     }
-    fun screenshot(uri: String) {
+    @Synchronized fun screenshot(uri: String) {
         if (!dev.raabta.keyboard.ui.KeyboardOptions(context).enabled("clipboard_enabled")) return
         screenshot = Candidate("Paste recent screenshot", "", imageUri=uri)
         screenshotUntil = SystemClock.uptimeMillis() + 120_000
     }
-    fun candidates(items: Boolean): List<Candidate> {
+    @Synchronized fun candidates(items: Boolean): List<Candidate> {
         val options = dev.raabta.keyboard.ui.KeyboardOptions(context)
         if (!options.enabled("clipboard_enabled")) { clearPreview(); return emptyList() }
         val result = mutableListOf<Candidate>()
@@ -49,6 +49,6 @@ class ClipboardPreview(private val context: Context, val history: ClipboardHisto
         }
         return result.distinctBy { it.text to it.imageUri }.take(5)
     }
-    fun clearPreview() { screenshot=null; screenshotUntil=0 }
-    fun clear() { clearPreview(); history.clearUnpinned() }
+    @Synchronized fun clearPreview() { screenshot=null; screenshotUntil=0 }
+    @Synchronized fun clear() { clearPreview(); history.clearUnpinned() }
 }

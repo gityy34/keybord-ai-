@@ -26,7 +26,7 @@ class ClipboardHistory @JvmOverloads constructor(
     private val store = context.getSharedPreferences("clipboard_history", Context.MODE_PRIVATE)
     private val clips = read().toMutableList()
 
-    fun items(section: ClipSection): List<SavedClip> {
+    @Synchronized fun items(section: ClipSection): List<SavedClip> {
         expire()
         val ordered = clips.sortedByDescending { it.copiedAt }
         val unpinned = ordered.filterNot(SavedClip::pinned)
@@ -38,14 +38,14 @@ class ClipboardHistory @JvmOverloads constructor(
     }
 
     private fun itemsRecent(unpinned: List<SavedClip>) = unpinned.filter { clock() - it.copiedAt < RECENT_MILLIS }.take(6)
-    fun latest(): SavedClip? = (items(ClipSection.RECENT) + items(ClipSection.OLD)).maxByOrNull(SavedClip::copiedAt)
-    fun find(id: String): SavedClip? {
+    @Synchronized fun latest(): SavedClip? = (items(ClipSection.RECENT) + items(ClipSection.OLD)).maxByOrNull(SavedClip::copiedAt)
+    @Synchronized fun find(id: String): SavedClip? {
         expire()
         return clips.firstOrNull { it.id == id }
     }
 
     /** A duplicate copied again becomes the newest item. Pinned content stays pinned. */
-    fun add(text: String): Boolean {
+    @Synchronized fun add(text: String): Boolean {
         if (text.isBlank()) return false
         expire()
         val value = text.take(MAX_CHARS)
@@ -57,19 +57,19 @@ class ClipboardHistory @JvmOverloads constructor(
         // but report that the copy could not be saved across process restarts.
         return persist()
     }
-    fun pin(id: String, value: Boolean): Boolean = change(id) { it.copy(pinned = value) }
-    fun delete(id: String): Boolean {
+    @Synchronized fun pin(id: String, value: Boolean): Boolean = change(id) { it.copy(pinned = value) }
+    @Synchronized fun delete(id: String): Boolean {
         val previous = clips.toList()
         if (!clips.removeAll { it.id == id }) return false
         return if (persist()) true else { clips.clear(); clips.addAll(previous); false }
     }
-    fun clear(section: ClipSection): Boolean {
+    @Synchronized fun clear(section: ClipSection): Boolean {
         val previous = clips.toList()
         val ids = items(section).map(SavedClip::id).toSet()
         clips.removeAll { it.id in ids }
         return if (persist()) true else { clips.clear(); clips.addAll(previous); false }
     }
-    fun clearUnpinned(): Boolean {
+    @Synchronized fun clearUnpinned(): Boolean {
         val previous = clips.toList()
         clips.removeAll { !it.pinned }
         return if (persist()) true else { clips.clear(); clips.addAll(previous); false }

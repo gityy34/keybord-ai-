@@ -73,6 +73,7 @@ class KeyboardView @JvmOverloads constructor(
     private val optionFingerprint = options.fingerprint()
     private val candidateRow = SuggestionStrip(context)
     private val candidateButtons = mutableListOf<Button>()
+    private var candidateSignature = emptyList<String>()
     private var panel: View? = null
     var settingsPage = ""
         private set
@@ -356,10 +357,11 @@ class KeyboardView @JvmOverloads constructor(
 
     /** Once composition starts, the center toolbar area becomes the suggestion area. */
     fun setTypingActive(active: Boolean) {
+        val changed = typingActive != active
         typingActive = active
         if (settingsPage.isEmpty() && panel == null && writingPanel == null && !recorder.isVisible) {
             applyCenterMode()
-            requestLayout()
+            if (changed) requestLayout()
         }
     }
 
@@ -385,6 +387,7 @@ class KeyboardView @JvmOverloads constructor(
     fun render(enterLabel: Int) {
         cancelRepeats()
         this.enterLabel = enterLabel
+        candidateSignature = emptyList()
         rows.removeAllViews()
         letterButtons.clear()
         gestureButtons.clear()
@@ -691,6 +694,9 @@ class KeyboardView @JvmOverloads constructor(
     fun showCandidates(candidates:List<Candidate>) {
         val ordered=if(options.enabled("suggestion_strip") && panel==null) candidates.take(options.number("suggestion_count")) else emptyList()
         val visible=ordered
+        val signature=visible.map { "${it.text}\u0000${it.label}\u0000${it.replace}\u0000${it.emoji}\u0000${it.imageUri}" }
+        if (signature == candidateSignature) return
+        candidateSignature=signature
         while(candidateButtons.size<options.number("suggestion_count")) {
             val button=Button(context).apply {
                 isAllCaps=false; setTextColor(palette.text); minWidth=0; minimumWidth=0

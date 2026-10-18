@@ -18,6 +18,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.util.ReflectionHelpers
 import java.time.Duration
+import java.util.concurrent.ThreadPoolExecutor
 
 @RunWith(org.robolectric.RobolectricTestRunner::class)
 @Config(sdk=[28])
@@ -48,7 +49,15 @@ class WritingAndLearningTest {
     }
     private fun click(tag:String) { val item=view.findViewWithTag<View>(tag); assertNotNull("Missing $tag",item); assertTrue(item.performClick()) }
     private fun type(text:String) { text.forEach { click(if(it==' ') "Space" else "text:$it") } }
-    private fun update() { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(30)) }
+    private fun update() {
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(30))
+        val executor=ReflectionHelpers.getField<ThreadPoolExecutor>(service,"suggestionWorker")
+        repeat(200) {
+            if (executor.activeCount==0 && executor.queue.isEmpty()) return@repeat
+            Thread.sleep(2)
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+    }
     private fun toolbox(name:String) { click("Tools"); click("settings:$name") }
     @Test fun suggestionsHaveEqualWidthsAndTypedWordFirst() {
         type("he"); update()
