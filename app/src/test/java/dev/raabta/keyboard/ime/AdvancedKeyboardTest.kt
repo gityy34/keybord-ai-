@@ -241,6 +241,24 @@ class AdvancedKeyboardTest {
         click("ResizeDone")
         assertNull(view.findViewWithTag<View>("ResizePanel"))
     }
+    @Test fun resizeTopAndBottomHandlesAreLiveAndBounded() {
+        click("Tools"); click("settings:Resize")
+        view.measure(View.MeasureSpec.makeMeasureSpec(360, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(800, View.MeasureSpec.AT_MOST))
+        view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+        val top=view.findViewWithTag<View>("ResizeTopHandle")
+        val bottom=view.findViewWithTag<View>("ResizeBottomHandle")
+        assertNotNull(top); assertNotNull(bottom)
+        val before=KeyboardOptions(service).number("height_scale")
+        bottom!!.dispatchTouchEvent(MotionEvent.obtain(0,0,MotionEvent.ACTION_DOWN,180f,700f,0))
+        bottom.dispatchTouchEvent(MotionEvent.obtain(0,60,MotionEvent.ACTION_MOVE,180f,820f,0))
+        bottom.dispatchTouchEvent(MotionEvent.obtain(0,80,MotionEvent.ACTION_UP,180f,820f,0))
+        assertTrue(KeyboardOptions(service).number("height_scale") > before)
+        val grown=KeyboardOptions(service).number("height_scale")
+        top!!.dispatchTouchEvent(MotionEvent.obtain(0,100,MotionEvent.ACTION_DOWN,180f,100f,0))
+        top.dispatchTouchEvent(MotionEvent.obtain(0,160,MotionEvent.ACTION_MOVE,180f,0f,0))
+        top.dispatchTouchEvent(MotionEvent.obtain(0,180,MotionEvent.ACTION_UP,180f,0f,0))
+        assertTrue(KeyboardOptions(service).number("height_scale") >= grown)
+    }
     @Test fun offlineGlideRanksDictionaryPathsAndRejectsUnknownPaths() {
         assertEquals("hello",LocalSuggestions.glide("helo",emptyList()))
         assertTrue(LocalSuggestions.glideCandidates("hlo",emptyList()).map { it.text }.contains("hello"))

@@ -157,6 +157,11 @@ class KeyboardView @JvmOverloads constructor(
     private var emojiQuery=""
     private var clipboardPinnedOnly=false
     private var resizeOriginalScale=options.number("height_scale")
+    private var resizeHost: FrameLayout? = null
+    private var resizeOverlay: ResizeOverlay? = null
+    private var resizeTopOffsetY = 0f
+    private var resizeDragStartScale = options.number("height_scale")
+    private var resizeDragStartOffsetY = 0f
     private var typingActive=false
 
     init {
@@ -475,7 +480,7 @@ class KeyboardView @JvmOverloads constructor(
 
     private fun keyHeightBase(landscape:Boolean):Int {
         val base = if (landscape) 42 else 54
-        return context.dp((base * options.number("height_scale") / 100f).toInt().coerceIn(if(landscape) 40 else 50, if(landscape) 64 else 82))
+        return context.dp((base * options.number("height_scale") / 100f).toInt().coerceIn(if(landscape) 40 else 50, if(landscape) 84 else 108))
     }
     private fun shiftBackground(active:Boolean) = palette.keyBackground(KeySurface.FUNCTION, context.dp(11).toFloat())
 
@@ -779,11 +784,25 @@ class KeyboardView @JvmOverloads constructor(
             if(button.width>0) reveal() else button.addOnLayoutChangeListener(object:View.OnLayoutChangeListener { override fun onLayoutChange(v:View,l:Int,t:Int,r:Int,b:Int,ol:Int,ot:Int,or:Int,ob:Int) { if(r>l) { button.removeOnLayoutChangeListener(this); reveal() } } })
         }
     }
+    private fun clearResizeHost() {
+        val host = resizeHost ?: return
+        val index = content.indexOfChild(host)
+        (rows.parent as? android.view.ViewGroup)?.removeView(rows)
+        content.removeView(host)
+        resizeHost = null
+        resizeOverlay = null
+        resizeTopOffsetY = 0f
+        if (rows.parent !== content) {
+            content.addView(rows, index.coerceAtLeast(0), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        }
+    }
+
     fun showSettings(page:String="Raabta settings") {
         cancelRepeats()
         emojiPanel?.let { content.removeView(it) }; emojiPanel=null; emojiSearching=false; emojiQuery=""
+        clearResizeHost()
         if(rows.parent!==content) { (rows.parent as? android.view.ViewGroup)?.removeView(rows); content.addView(rows) }
-        panel?.let { content.removeView(it) }; panel=null
+        panel?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }; panel=null
         settingsPage=page
         for(i in 0 until content.childCount) content.getChildAt(i).visibility=View.GONE
         if(page.isEmpty()) {
@@ -831,29 +850,64 @@ class KeyboardView @JvmOverloads constructor(
         showSettings("")
         resizeOriginalScale=options.number("height_scale")
         rows.visibility=View.VISIBLE; candidateRow.visibility=View.GONE; toolbarVisible(false); header?.visibility=View.GONE; title.visibility=View.GONE
-        val controls=LinearLayout(context).apply { orientation=VERTICAL; tag="ResizePanel"; setPadding(context.dp(8),context.dp(6),context.dp(8),context.dp(6)); background=palette.backgroundDrawable() }
-        val titleRow=LinearLayout(context).apply { gravity=Gravity.CENTER_VERTICAL }
-        titleRow.addView(TextView(context).apply { setText(R.string.resize_keyboard); textSize=15f; setTextColor(palette.text) },LayoutParams(0,context.dp(34),1f))
-        fun ctl(label:String, tagValue:String, action:()->Unit)=Button(context).apply { text=label; tag=tagValue; textSize=12f; isAllCaps=false; setTextColor(palette.text); background=palette.pressed(radius=context.dp(8).toFloat()); setOnClickListener { action() } }
-        titleRow.addView(ctl("Reset","ResizeReset") { options.setNumber("height_scale",100); render(enterLabel); showResizeMode() },LayoutParams(context.dp(70),context.dp(34)))
-        titleRow.addView(ctl("Cancel","ResizeCancel") { options.setNumber("height_scale",resizeOriginalScale); showSettings("") },LayoutParams(context.dp(78),context.dp(34)))
-        titleRow.addView(ctl("Done","ResizeDone") { showSettings("") },LayoutParams(context.dp(70),context.dp(34)))
-        controls.addView(titleRow)
-        controls.addView(SeekBar(context).apply {
-            tag="ResizeSlider"
-            max=KeyboardOptions.HEIGHT_SCALE_MAX-KeyboardOptions.HEIGHT_SCALE_MIN
-            progress=(options.number("height_scale")-KeyboardOptions.HEIGHT_SCALE_MIN).coerceIn(0,max)
-            progressTintList=ColorStateList.valueOf(palette.accent); thumbTintList=ColorStateList.valueOf(palette.accent)
-            setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(bar:SeekBar?, progress:Int, fromUser:Boolean) { options.setNumber("height_scale",KeyboardOptions.HEIGHT_SCALE_MIN+progress); render(enterLabel); requestLayout() }
-            override fun onStartTrackingTouch(bar:SeekBar?)=Unit
-            override fun onStopTrackingTouch(bar:SeekBar?)=Unit
-        }) },LayoutParams(LayoutParams.MATCH_PARENT,context.dp(42)))
-        panel?.let { content.removeView(it) }
-        panel=controls
-        content.addView(controls, content.indexOfChild(rows).coerceAtLeast(0), LayoutParams(LayoutParams.MATCH_PARENT, context.dp(88)))
+        val rowIndex = content.indexOfChild(rows).coerceAtLeast(0)
+        (rows.parent as? android.view.ViewGroup)?.removeView(rows)
+        val host = FrameLayout(context).apply {
+            tag = "ResizeHost"
+            clipChildren = false
+            clipToPadding = false
+        }
+        host.addView(rows, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        val overlay = ResizeOverlay(
+            context = context,
+            palette = palette,
+            minimumScale = KeyboardOptions.HEIGHT_SCALE_MIN,
+            maximumScale = KeyboardOptions.HEIGHT_SCALE_MAX,
+            initialScale = options.number("height_scale"),
+            onReset = {
+                resizeTopOffsetY = 0f
+                options.setNumber("height_scale", 100)
+                render(enterLabel)
+                resizeOverlay?.setScale(100)
+                requestLayout()
+            },
+            onCancel = {
+                options.setNumber("height_scale", resizeOriginalScale)
+                showSettings("")
+            },
+            onDone = { showSettings("") },
+            onDragStart = { _, scale ->
+                resizeDragStartScale = scale
+                resizeDragStartOffsetY = resizeTopOffsetY
+            },
+            onScaleChanged = { edge, startScale, proposed, scale, exceeded ->
+                options.setNumber("height_scale", scale)
+                if (edge == ResizeEdge.TOP) {
+                    val scaleDelta = scale - startScale
+                    resizeTopOffsetY = resizeDragStartOffsetY - resizeScaleDeltaPx(scaleDelta)
+                }
+                resizeOverlay?.setLimitExceeded(exceeded)
+                resizeOverlay?.setScale(scale)
+                render(enterLabel)
+                requestLayout()
+            },
+            onDragEnd = { resizeOverlay?.setLimitExceeded(false) },
+        )
+        resizeHost = host
+        resizeOverlay = overlay
+        panel = overlay
+        host.addView(overlay, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        content.addView(host, rowIndex, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         settingsPage="Resize"
         requestLayout()
+    }
+
+    /** Approximate the row-height change so a top-edge drag keeps the bottom edge anchored. */
+    private fun resizeScaleDeltaPx(scaleDelta: Int): Float {
+        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val base = if (landscape) 42f else 54f
+        val rowCount = rows.childCount.coerceAtLeast(1)
+        return context.resources.displayMetrics.density * base * rowCount * scaleDelta / 100f
     }
 
     fun showEditingTools() {
@@ -964,6 +1018,7 @@ class KeyboardView @JvmOverloads constructor(
         val displayHeight=resources.displayMetrics.heightPixels
         val bottomGap=KeyboardInsetMetrics.bottomSpacerPx(resources.displayMetrics.density,navigationInsetPx,displayHeight)
         val workspace=panel!=null || writingPanel!=null || recorder.isVisible || emojiPanel!=null
+        val resizeMode=settingsPage=="Resize" && resizeHost!=null
         // The reference gap protects the actual keyboard rows. Full-screen tool
         // pages have no key row at the bottom, so they can use that space for their
         // controls; resize/edit modes keep the gap because keys remain visible.
@@ -978,7 +1033,7 @@ class KeyboardView @JvmOverloads constructor(
         }
         // Suggestions occupy the same fixed-height center strip as the toolbar;
         // they must not add a second row or shrink the key area.
-        val normal=count*(defaultKey+context.dp(6))+toolbarHeight
+        val normal=count*(defaultKey+context.dp(6))+if(resizeMode) 0 else toolbarHeight
         val system=if(MeasureSpec.getMode(heightMeasureSpec)==MeasureSpec.UNSPECIFIED) Int.MAX_VALUE else (MeasureSpec.getSize(heightMeasureSpec)-paddingTop-paddingBottom).coerceAtLeast(0)
         // Keep the bottom gap outside the usable keyboard area. When the height
         // scale grows, the IME window can move upward while this bottom edge stays
@@ -988,12 +1043,18 @@ class KeyboardView @JvmOverloads constructor(
         content.layoutParams.height=if(workspace) area else LayoutParams.WRAP_CONTENT
         val message=if(voiceMessage.isVisible) context.dp(if(landscape) 48 else 64) else 0
         voiceMessage.layoutParams.height=if(message>0) message else LayoutParams.WRAP_CONTENT
-        panel?.layoutParams?.height=if(settingsPage=="Resize") context.dp(88) else (area-message).coerceAtLeast(0)
+        if (resizeMode) {
+            resizeHost?.layoutParams?.height=area
+            resizeHost?.translationY=resizeTopOffsetY
+            panel?.layoutParams?.height=area
+        } else {
+            panel?.layoutParams?.height=(area-message).coerceAtLeast(0)
+        }
         recorder.layoutParams.height=(area-message).coerceAtLeast(0)
         val writingEditorHeight=context.dp(if(resources.configuration.fontScale>1.2f) 102 else 94)
         writingPanel?.layoutParams?.height=if(writingKeyboardVisible) writingEditorHeight else (area-message).coerceAtLeast(0)
         emojiPanel?.layoutParams?.height=if(emojiSearching) context.dp(88) else area
-        val fixed=if(workspace) (if(settingsPage=="Resize") context.dp(88) else if(writingPanel!=null && writingKeyboardVisible) writingEditorHeight else if(emojiSearching) context.dp(88) else 0)+message else toolbarHeight+(if(title.isVisible) context.dp(28) else 0)+message
+        val fixed=if(workspace) (if(resizeMode) 0 else if(writingPanel!=null && writingKeyboardVisible) writingEditorHeight else if(emojiSearching) context.dp(88) else 0)+message else toolbarHeight+(if(title.isVisible) context.dp(28) else 0)+message
         val keyHeight=minOf(defaultKey,((area-fixed)/count-context.dp(6)).coerceAtLeast(context.dp(16)))
         for(i in 0 until rows.childCount) (rows.getChildAt(i) as? LinearLayout)?.let { row ->
             for(j in 0 until row.childCount) if(row.getChildAt(j) is Button) row.getChildAt(j).layoutParams.height=keyHeight

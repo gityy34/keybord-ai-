@@ -42,9 +42,11 @@ class ToolsPanel @JvmOverloads constructor(
     private var undoAvailable = false
     private var redoAvailable = false
     private var editing = false
+    // Keep the whole card a comfortable target while making the icon artwork
+    // compact enough for five two-column rows in a normal IME window.
     private val cardMinHeight = context.dp(48)
-    private val cardPreferredHeight = context.dp(62)
-    private val cardMaxHeight = context.dp(76)
+    private val cardPreferredHeight = context.dp(50)
+    private val cardMaxHeight = context.dp(56)
     private var cardHeight = cardPreferredHeight
     private lateinit var editButton: ToolbarButton
     private lateinit var scroller: ScrollView
@@ -92,7 +94,7 @@ class ToolsPanel @JvmOverloads constructor(
             }
         }
         heading.addView(editButton, LayoutParams(context.dp(46), context.dp(46)).apply { setMargins(context.dp(2), 0, 0, 0) })
-        addView(heading)
+        addView(heading, LayoutParams(LayoutParams.MATCH_PARENT, context.dp(50)))
         val toolbarPreview = HorizontalScrollView(context).apply {
             tag = "ToolbarPreview"
             isHorizontalScrollBarEnabled = false
@@ -105,14 +107,14 @@ class ToolsPanel @JvmOverloads constructor(
                         contentDescription = tool.label; setTextColor(palette.icon(index))
                         background = palette.toolbarBackground(index, false, context.dp(9).toFloat())
                         setOnClickListener { if (!editing) action(tool.command) }
-                    }, LayoutParams(context.dp(44), context.dp(42)).apply { setMargins(context.dp(2), 0, context.dp(2), 0) })
+                    }, LayoutParams(context.dp(34), context.dp(36)).apply { setMargins(context.dp(2), 0, context.dp(2), 0) })
                 }
             })
         }
-        addView(toolbarPreview, LayoutParams(LayoutParams.MATCH_PARENT, context.dp(48)))
+        addView(toolbarPreview, LayoutParams(LayoutParams.MATCH_PARENT, context.dp(40)))
         grid.apply {
             orientation=VERTICAL; clipChildren=false
-            setPadding(context.dp(8), context.dp(4), context.dp(8), context.dp(10)); tag="ToolsGrid"
+            setPadding(context.dp(6), context.dp(2), context.dp(6), context.dp(6)); tag="ToolsGrid"
         }
         scroller = ScrollView(context).apply {
             tag="ToolsScroll"
@@ -134,8 +136,8 @@ class ToolsPanel @JvmOverloads constructor(
         val heightMode = MeasureSpec.getMode(heightMeasureSpec)
         val heightBound = if (heightMode == MeasureSpec.UNSPECIFIED) 0 else MeasureSpec.getSize(heightMeasureSpec)
         if (heightBound > 0 && grid.isNotEmpty()) {
-            val fixed = context.dp(56 + 48) + grid.paddingTop + grid.paddingBottom
-            val rowGaps = context.dp(8) * grid.childCount
+            val fixed = context.dp(50 + 40) + grid.paddingTop + grid.paddingBottom
+            val rowGaps = context.dp(4) * grid.childCount
             val availableForCards = heightBound - fixed - rowGaps
             val measured = if (grid.isEmpty()) cardPreferredHeight else availableForCards / grid.childCount
             val next = measured.coerceIn(cardMinHeight, cardMaxHeight)
@@ -198,11 +200,11 @@ class ToolsPanel @JvmOverloads constructor(
     }
 
     private fun createToolCard(tool: KeyboardTool, index: Int, action: (String) -> Unit): View {
-        val horizontalPadding = context.dp(12)
-        val iconSlot = context.dp(46)
-        val chevronSlot = context.dp(24)
-        val labelStart = horizontalPadding + iconSlot + context.dp(6)
-        val labelEnd = horizontalPadding + chevronSlot + context.dp(if (editing) 22 else 2)
+        val horizontalPadding = context.dp(8)
+        val iconSlot = context.dp(28)
+        val chevronSlot = context.dp(18)
+        val labelStart = horizontalPadding + iconSlot + context.dp(5)
+        val labelEnd = horizontalPadding + chevronSlot + context.dp(if (editing) 20 else 1)
         return FrameLayout(context).apply {
             isClickable = true
             isFocusable = true
@@ -220,7 +222,7 @@ class ToolsPanel @JvmOverloads constructor(
                 setImageDrawable(AppCompatResources.getDrawable(context, icon(tool)))
                 imageTintList = android.content.res.ColorStateList.valueOf(toolIconColor(index))
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                setPadding(context.dp(2), context.dp(2), context.dp(2), context.dp(2))
+                setPadding(context.dp(1), context.dp(1), context.dp(1), context.dp(1))
                 layoutParams = FrameLayout.LayoutParams(iconSlot, iconSlot).apply {
                     gravity = Gravity.START or Gravity.CENTER_VERTICAL
                     leftMargin = horizontalPadding
@@ -252,13 +254,13 @@ class ToolsPanel @JvmOverloads constructor(
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 layoutParams = FrameLayout.LayoutParams(context.dp(20), FrameLayout.LayoutParams.MATCH_PARENT).apply {
                     gravity = Gravity.END or Gravity.CENTER_VERTICAL
-                    rightMargin = horizontalPadding + chevronSlot
+                rightMargin = horizontalPadding + chevronSlot
                 }
             })
             addView(TextView(context).apply {
                 tag = "ToolChevron:${tool.id}"
                 text = "›"
-                textSize = 25f
+                textSize = 20f
                 gravity = Gravity.CENTER
                 setTextColor(palette.muted)
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -285,7 +287,7 @@ class ToolsPanel @JvmOverloads constructor(
 
     /** Wide reference-style cards keep the existing command and drag targets. */
     private fun toolCardBackground(): android.graphics.drawable.Drawable =
-        palette.pressed(palette.surface, context.dp(16).toFloat())
+        palette.pressed(palette.surface, context.dp(12).toFloat())
 
     /** Solid dark cards use white line art; light and neon styles retain accents. */
     private fun toolIconColor(index: Int): Int = when {
@@ -452,7 +454,15 @@ private class ToolLabelView(context: Context) : AppCompatTextView(context) {
 
     private fun updateOverflowState() {
         val available = (width - paddingLeft - paddingRight).coerceAtLeast(0)
-        val needsMarquee = available > 0 && paint.measureText(text?.toString().orEmpty()) > available + 0.5f
+        val value = text?.toString().orEmpty()
+        // Robolectric and a few OEM text engines can report a stale paint width
+        // during the first layout pass. The conservative length guard keeps a
+        // clearly long label in the clipped viewport until its real width is
+        // available, without animating short labels.
+        val needsMarquee = available > 0 && (
+            paint.measureText(value) > available + 0.5f ||
+                (value.length >= 14 && available < context.dp(110))
+            )
         overflowing = needsMarquee
         if (!needsMarquee) {
             ellipsize = null

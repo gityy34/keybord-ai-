@@ -29,7 +29,8 @@ class KeyboardOptions(context: Context) {
     companion object {
         /** The reference keyboard is the 100% baseline; never shrink below 96%. */
         const val HEIGHT_SCALE_MIN = 96
-        const val HEIGHT_SCALE_MAX = 150
+        /** Free-hand resize may grow to roughly two thirds of a portrait IME window. */
+        const val HEIGHT_SCALE_MAX = 180
         val defaults = mapOf(
             "clipboard_enabled" to true, "emoji_key" to true, "language_key" to true, "comma_key" to true, "full_stop_key" to true,
             "suggestion_strip" to true, "word_suggestions" to true, "next_word" to true,
