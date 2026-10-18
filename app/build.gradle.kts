@@ -11,8 +11,8 @@ android {
         applicationId = "dev.raabta.keyboard"
         minSdk = 26
         targetSdk = 35
-        versionCode = 22
-        versionName = "0.18.0"
+        versionCode = 23
+        versionName = "0.19.0"
     }
     // Ship a small ARM64 phone APK while retaining universal/ChromeOS builds.
     splits {
