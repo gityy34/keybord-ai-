@@ -3,11 +3,18 @@ package dev.raabta.keyboard.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
+import android.provider.Settings
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
+import android.view.accessibility.AccessibilityManager
 import android.widget.*
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.appcompat.widget.AppCompatTextView
+import androidx.core.view.isNotEmpty
+import androidx.core.view.isEmpty
 import dev.raabta.keyboard.R
 import dev.raabta.keyboard.ime.KeyboardTool
 import dev.raabta.keyboard.ime.ToolOrder
@@ -35,6 +42,10 @@ class ToolsPanel @JvmOverloads constructor(
     private var undoAvailable = false
     private var redoAvailable = false
     private var editing = false
+    private val cardMinHeight = context.dp(48)
+    private val cardPreferredHeight = context.dp(62)
+    private val cardMaxHeight = context.dp(76)
+    private var cardHeight = cardPreferredHeight
     private lateinit var editButton: ToolbarButton
     private lateinit var scroller: ScrollView
     private val toolAction = action
@@ -103,9 +114,51 @@ class ToolsPanel @JvmOverloads constructor(
             orientation=VERTICAL; clipChildren=false
             setPadding(context.dp(8), context.dp(4), context.dp(8), context.dp(10)); tag="ToolsGrid"
         }
-        scroller = ScrollView(context).apply { tag="ToolsScroll"; addView(grid) }
+        scroller = ScrollView(context).apply {
+            tag="ToolsScroll"
+            isFillViewport = true
+            isVerticalScrollBarEnabled = false
+            isHorizontalScrollBarEnabled = false
+            addView(grid)
+        }
         addView(scroller,LayoutParams(LayoutParams.MATCH_PARENT,0,1f))
         populate(action)
+    }
+
+    /**
+     * The IME supplies the height for this panel. Keep cards comfortable at
+     * normal heights, shrink them only down to the touch-target minimum, and
+     * let the existing vertical scroller handle unusually short keyboards.
+     */
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val heightMode = MeasureSpec.getMode(heightMeasureSpec)
+        val heightBound = if (heightMode == MeasureSpec.UNSPECIFIED) 0 else MeasureSpec.getSize(heightMeasureSpec)
+        if (heightBound > 0 && grid.isNotEmpty()) {
+            val fixed = context.dp(56 + 48) + grid.paddingTop + grid.paddingBottom
+            val rowGaps = context.dp(8) * grid.childCount
+            val availableForCards = heightBound - fixed - rowGaps
+            val measured = if (grid.isEmpty()) cardPreferredHeight else availableForCards / grid.childCount
+            val next = measured.coerceIn(cardMinHeight, cardMaxHeight)
+            if (next != cardHeight) {
+                cardHeight = next
+                updateCardHeights()
+            }
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
+
+    private fun updateCardHeights() {
+        for (rowIndex in 0 until grid.childCount) {
+            val row = grid.getChildAt(rowIndex) as? ViewGroup ?: continue
+            for (column in 0 until row.childCount) {
+                val child = row.getChildAt(column)
+                val params = child.layoutParams ?: continue
+                if (params.height != cardHeight) {
+                    params.height = cardHeight
+                    child.layoutParams = params
+                }
+            }
+        }
     }
     private fun icon(tool: KeyboardTool): Int = when(tool.id) {
         "Settings" -> R.drawable.ic_settings
@@ -131,50 +184,103 @@ class ToolsPanel @JvmOverloads constructor(
         order.more().chunked(2).forEachIndexed { rowIndex, tools ->
             val row=LinearLayout(context).apply { isBaselineAligned=false; clipChildren=false; tag="ToolRow:$rowIndex" }
             tools.forEachIndexed { column,tool ->
-                val tile=LinearLayout(context).apply {
-                    orientation=HORIZONTAL; gravity=Gravity.CENTER_VERTICAL; isClickable=true; isFocusable=true
-                    tag="settings:${tool.id}"; contentDescription=tool.label
-                    setPadding(context.dp(12), context.dp(8), context.dp(12), context.dp(8))
-                    background=toolCardBackground()
-                    scaleX=if(editing) 0.985f else 1f; scaleY=if(editing) 0.985f else 1f
-                    addView(ImageView(context).apply {
-                        setImageDrawable(AppCompatResources.getDrawable(context,icon(tool)))
-                        imageTintList=android.content.res.ColorStateList.valueOf(toolIconColor(rowIndex*2+column))
-                        importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                        setPadding(context.dp(2), context.dp(2), context.dp(2), context.dp(2))
-                    },LayoutParams(context.dp(46),context.dp(46)))
-                    addView(TextView(context).apply {
-                        text=tool.label; textSize=14f; maxLines=2; gravity=Gravity.CENTER_VERTICAL; setTextColor(palette.text)
-                        setPadding(context.dp(8), 0, context.dp(4), 0)
-                        layoutParams=LayoutParams(0,LayoutParams.WRAP_CONTENT,1f)
-                    })
-                    if (editing) addView(TextView(context).apply {
-                        text = "⋮⋮"; textSize = 14f; gravity = Gravity.CENTER; setTextColor(palette.muted)
-                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                    },LayoutParams(context.dp(18),LayoutParams.MATCH_PARENT))
-                    setOnClickListener { if (!editing) action(tool.command) }
-                    setOnLongClickListener { view ->
-                        if (!editing) {
-                            PopupMenu(context,view).apply {
-                                menu.add("Move to Toolbar").setOnMenuItemClickListener {
-                                    order.move(tool.id,true); changed(); populate(action); true
-                                }
-                                show()
-                            }
-                        }
-                        true
-                    }
-                    attachGridReorderTouch(this, tool.id)
-                }
+                val tile = createToolCard(tool, rowIndex * 2 + column, action)
                 if(tool.command=="edit:undo" || tool.command=="edit:redo") historyButtons[tool.command]=tile
                 tileViews[tool.id]=tile
-                row.addView(tile,LayoutParams(0,context.dp(78),1f).apply { setMargins(context.dp(4),context.dp(4),context.dp(4),context.dp(4)) })
+                row.addView(tile,LayoutParams(0,cardHeight,1f).apply { setMargins(context.dp(4),context.dp(4),context.dp(4),context.dp(4)) })
             }
-            repeat(2-tools.size) { row.addView(View(context),LayoutParams(0,context.dp(78),1f).apply { setMargins(context.dp(4),context.dp(4),context.dp(4),context.dp(4)) }) }
+            repeat(2-tools.size) { row.addView(View(context),LayoutParams(0,cardHeight,1f).apply { setMargins(context.dp(4),context.dp(4),context.dp(4),context.dp(4)) }) }
             grid.addView(row)
         }
+        updateCardHeights()
         historyAvailability(undoAvailable,redoAvailable)
         if (previousScroll > 0) scroller.post { scroller.scrollTo(0, previousScroll) }
+    }
+
+    private fun createToolCard(tool: KeyboardTool, index: Int, action: (String) -> Unit): View {
+        val horizontalPadding = context.dp(12)
+        val iconSlot = context.dp(46)
+        val chevronSlot = context.dp(24)
+        val labelStart = horizontalPadding + iconSlot + context.dp(6)
+        val labelEnd = horizontalPadding + chevronSlot + context.dp(if (editing) 22 else 2)
+        return FrameLayout(context).apply {
+            isClickable = true
+            isFocusable = true
+            clipChildren = true
+            clipToPadding = true
+            minimumHeight = cardMinHeight
+            tag = "settings:${tool.id}"
+            contentDescription = tool.label
+            background = toolCardBackground()
+            scaleX = if (editing) 0.985f else 1f
+            scaleY = if (editing) 0.985f else 1f
+            stateListAnimator = null
+            addView(ImageView(context).apply {
+                tag = "ToolIcon:${tool.id}"
+                setImageDrawable(AppCompatResources.getDrawable(context, icon(tool)))
+                imageTintList = android.content.res.ColorStateList.valueOf(toolIconColor(index))
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                setPadding(context.dp(2), context.dp(2), context.dp(2), context.dp(2))
+                layoutParams = FrameLayout.LayoutParams(iconSlot, iconSlot).apply {
+                    gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                    leftMargin = horizontalPadding
+                }
+            })
+            addView(ToolLabelView(context).apply {
+                tag = "ToolLabel:${tool.id}"
+                text = tool.label
+                textSize = 14f
+                setTextColor(palette.text)
+                gravity = Gravity.CENTER_VERTICAL
+                includeFontPadding = false
+                setPadding(context.dp(6), 0, context.dp(4), 0)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                ).apply {
+                    leftMargin = labelStart
+                    rightMargin = labelEnd
+                }
+            })
+            if (editing) addView(TextView(context).apply {
+                tag = "ToolDragHandle:${tool.id}"
+                text = "⋮⋮"
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setTextColor(palette.muted)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                layoutParams = FrameLayout.LayoutParams(context.dp(20), FrameLayout.LayoutParams.MATCH_PARENT).apply {
+                    gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                    rightMargin = horizontalPadding + chevronSlot
+                }
+            })
+            addView(TextView(context).apply {
+                tag = "ToolChevron:${tool.id}"
+                text = "›"
+                textSize = 25f
+                gravity = Gravity.CENTER
+                setTextColor(palette.muted)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                layoutParams = FrameLayout.LayoutParams(chevronSlot, FrameLayout.LayoutParams.MATCH_PARENT).apply {
+                    gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                    rightMargin = horizontalPadding / 2
+                }
+            })
+            setOnClickListener { if (!editing) action(tool.command) }
+            setOnLongClickListener { view ->
+                if (!editing) {
+                    PopupMenu(context,view).apply {
+                        menu.add("Move to Toolbar").setOnMenuItemClickListener {
+                            order.move(tool.id,true); changed(); populate(action); true
+                        }
+                        show()
+                    }
+                }
+                true
+            }
+            attachGridReorderTouch(this, tool.id)
+        }
     }
 
     /** Wide reference-style cards keep the existing command and drag targets. */
@@ -313,6 +419,66 @@ class ToolsPanel @JvmOverloads constructor(
         for((command,available) in listOf("edit:undo" to undo,"edit:redo" to redo)) historyButtons[command]?.apply {
             isEnabled=available || editing; alpha=if(available || editing) 1f else 0.38f
             contentDescription=if(available) command.substringAfter(':') else "${command.substringAfter(':')} unavailable"
+        }
+    }
+}
+
+/**
+ * A single-line tool label that only enables Android's native marquee when
+ * the measured text actually exceeds its fixed viewport. Native marquee
+ * supplies the initial pause and repeat gap; the card remains responsible
+ * for clipping the label between its fixed icon and chevron slots.
+ */
+private class ToolLabelView(context: Context) : AppCompatTextView(context) {
+    private var overflowing = false
+
+    init {
+        setSingleLine(true)
+        maxLines = 1
+        ellipsize = null
+        marqueeRepeatLimit = -1
+        setHorizontallyScrolling(true)
+    }
+
+    override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) {
+        super.onTextChanged(text, start, before, count)
+        if (width > 0) updateOverflowState()
+    }
+
+    override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight)
+        updateOverflowState()
+    }
+
+    private fun updateOverflowState() {
+        val available = (width - paddingLeft - paddingRight).coerceAtLeast(0)
+        val needsMarquee = available > 0 && paint.measureText(text?.toString().orEmpty()) > available + 0.5f
+        overflowing = needsMarquee
+        if (!needsMarquee) {
+            ellipsize = null
+            isSelected = false
+            return
+        }
+        if (reducedMotion(context)) {
+            ellipsize = TextUtils.TruncateAt.END
+            isSelected = false
+        } else {
+            ellipsize = TextUtils.TruncateAt.MARQUEE
+            isSelected = true
+        }
+    }
+
+    private fun reducedMotion(context: Context): Boolean {
+        val accessibility = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+        if (accessibility?.isTouchExplorationEnabled == true) return true
+        return try {
+            Settings.Global.getFloat(
+                context.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f
+            ) == 0f
+        } catch (_: Exception) {
+            false
         }
     }
 }
