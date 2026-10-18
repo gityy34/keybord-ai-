@@ -64,7 +64,14 @@ class ToolsPanelReferenceTest {
         assertNotNull(spacer)
         assertFalse(spacer.isClickable)
         assertFalse(spacer.isFocusable)
-        assertEquals(context.dp(KeyboardInsetMetrics.OUTER_GAP_DP), spacer.measuredHeight)
+        assertEquals(
+            KeyboardInsetMetrics.bottomSpacerPx(
+                context.resources.displayMetrics.density,
+                0,
+                context.resources.displayMetrics.heightPixels
+            ),
+            spacer.measuredHeight
+        )
         assertTrue(spacer.top >= view.findViewWithTag<View>("Space").bottom)
     }
 
@@ -72,6 +79,12 @@ class ToolsPanelReferenceTest {
         assertEquals(8, KeyboardInsetMetrics.bottomSpacerPx(1f, 0))
         assertEquals(40, KeyboardInsetMetrics.bottomSpacerPx(2f, 24))
         assertEquals(16, KeyboardInsetMetrics.bottomSpacerPx(2f, -4))
+    }
+
+    @Test fun referenceBottomGapUsesDisplayRatioAndIncludesNavigationInset() {
+        val gap=KeyboardInsetMetrics.bottomSpacerPx(1f,24,1530)
+        assertEquals((1530*KeyboardInsetMetrics.REFERENCE_BOTTOM_GAP_RATIO+0.5f).toInt(),gap)
+        assertTrue(KeyboardInsetMetrics.bottomSpacerPx(1f,220,1530)>=220+KeyboardInsetMetrics.OUTER_GAP_DP)
     }
 
     @Test fun settingsHomeShowsPassiveSearchLauncherAndTapOpensFocusedSearchPage() {

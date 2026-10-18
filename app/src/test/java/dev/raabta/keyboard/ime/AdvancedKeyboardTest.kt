@@ -242,6 +242,13 @@ class AdvancedKeyboardTest {
         assertNull(LocalSuggestions.glide("qxz",emptyList()))
     }
 
+    @Test fun romanUrduNormalizationKeepsSpellingVariantsTogether() {
+        val kya=LocalSuggestions.candidates("kya",emptyList(),true,false,false,false,false,language=2,roman=true).map { it.text }
+        val kia=LocalSuggestions.candidates("kia",emptyList(),true,false,false,false,false,language=2,roman=true).map { it.text }
+        assertTrue(kya.contains("kya")); assertTrue(kya.contains("kia"))
+        assertTrue(kia.contains("kia")); assertTrue(kia.contains("kya"))
+    }
+
     @Test fun changingNumberRowInFullSettingsPreservesEditorAndUpdatesKeyboardOnReturn() {
         type("hello"); val settings=fullSettings()
         val root=settings.findViewById<View>(android.R.id.content)

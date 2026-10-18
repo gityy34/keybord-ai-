@@ -94,12 +94,15 @@ class RaabtaInputMethodService : InputMethodService() {
     private val worker=ThreadPoolExecutor(1,1,15,TimeUnit.SECONDS,ArrayBlockingQueue<Runnable>(1),ThreadPoolExecutor.DiscardOldestPolicy())
     /** Prediction is isolated from contact/AI work and never runs on the IME thread. */
     private val suggestionWorker=ThreadPoolExecutor(1,1,15,TimeUnit.SECONDS,ArrayBlockingQueue<Runnable>(1),ThreadPoolExecutor.DiscardOldestPolicy())
+    /** Learning persistence is also kept away from the keypress and Space paths. */
+    private val learningWorker=ThreadPoolExecutor(1,1,15,TimeUnit.SECONDS,ArrayBlockingQueue<Runnable>(8),ThreadPoolExecutor.DiscardOldestPolicy())
     private var contactNames=emptyList<String>()
     private var screenshotSince=0L
     private var showing=false
     private var spaceTime=-1L
     private var candidateBefore=""
     private var candidateGeneration=0
+    private var hasTypedSinceStart=false
     private var inputSequence=0L
     private val suggestionSequence=AtomicLong()
     private val suggestionUpdate=Runnable { updateSuggestions() }
@@ -188,6 +191,7 @@ class RaabtaInputMethodService : InputMethodService() {
         val capsMode = currentInputConnection?.getCursorCapsMode(attribute.inputType) ?: 0
         state.reset(EditorPolicy.isNumeric(attribute), options.enabled("auto_capitalization") && capsMode != 0)
         candidateBefore=""; clipboard.clearPreview(); contactNames=emptyList(); spaceTime=-1
+        hasTypedSinceStart=false
         keyboard?.showCandidates(emptyList())
         keyboard?.setTypingActive(false)
         ui.removeCallbacks(suggestionUpdate)
@@ -199,6 +203,7 @@ class RaabtaInputMethodService : InputMethodService() {
         // Any new key invalidates prediction work that is still in flight. The
         // commit itself remains synchronous and is never queued behind prediction.
         inputSequence++
+        if (key is Key.Text || key == Key.Space) hasTypedSinceStart=true
         voice.cancel()
         if(writingMode.isNotEmpty()) { writingKey(key); return }
         if(key==Key.Emoji) learningBuffer=""
@@ -317,7 +322,7 @@ class RaabtaInputMethodService : InputMethodService() {
     override fun onDestroy() {
         voice.cancel()
         keyboard?.cancelRepeats()
-        hideTools(); worker.shutdownNow(); mediaWorker.shutdownNow(); suggestionWorker.shutdownNow(); contactNames=emptyList()
+        hideTools(); worker.shutdownNow(); mediaWorker.shutdownNow(); suggestionWorker.shutdownNow(); learningWorker.shutdownNow(); contactNames=emptyList()
         keyboard = null
         super.onDestroy()
     }
@@ -406,11 +411,15 @@ class RaabtaInputMethodService : InputMethodService() {
     private fun canLearn() = options.enabled("learn_words") && VoicePolicy.allows(editor) &&
         editor.inputType and android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS == 0 &&
         editor.inputType and android.text.InputType.TYPE_MASK_VARIATION !in listOf(android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, android.text.InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS, android.text.InputType.TYPE_TEXT_VARIATION_URI)
+    private fun recordLearnedAsync(word:String, language:Int, selected:Boolean=false) {
+        if (!LearnedWords.valid(word)) return
+        try { learningWorker.execute { learned.record(word,language,selected) } } catch (_:RejectedExecutionException) { }
+    }
     private fun learnBoundary(context: String? = null) {
         val value=learningBuffer
         learningBuffer=""
         if(canLearn() && value.isNotEmpty() && LocalSuggestions.lastWord(context ?: before())==value && filtered(value))
-            learned.record(value,options.number("language"))
+            recordLearnedAsync(value,options.number("language"))
     }
 
     private fun editorAnchor():String {
@@ -602,11 +611,11 @@ class RaabtaInputMethodService : InputMethodService() {
         } catch (_:RuntimeException) { updateWriting("The editor is no longer available.") }
     }
 
-    private fun before():String {
+    private fun before(connection: android.view.inputmethod.InputConnection? = currentInputConnection):String {
         if(!VoicePolicy.allows(editor)) return ""
-        val connection=currentInputConnection ?: return ""
+        val input=connection ?: return ""
         return try {
-            if(!connection.getSelectedText(0).isNullOrEmpty()) "" else connection.getTextBeforeCursor(128,0)?.toString().orEmpty()
+            if(!input.getSelectedText(0).isNullOrEmpty()) "" else input.getTextBeforeCursor(128,0)?.toString().orEmpty()
         } catch (_:RuntimeException) { "" }
     }
     private fun refreshSuggestions() {
@@ -628,9 +637,6 @@ class RaabtaInputMethodService : InputMethodService() {
             suggestionSequence.incrementAndGet()
             candidateBefore=""; candidateGeneration=generation; keyboard?.setTypingActive(false); keyboard?.showCandidates(emptyList()); return
         }
-        // Keep the single editor read on the IME thread; dictionary, learning,
-        // clipboard and ranking work is moved off the critical input path.
-        val context=before()
         val serial=suggestionSequence.incrementAndGet()
         val wordsEnabled=options.enabled("word_suggestions")
         val nextEnabled=options.enabled("next_word")
@@ -646,9 +652,12 @@ class RaabtaInputMethodService : InputMethodService() {
         val learn=canLearn()
         val dictionary=if(wordsEnabled) options.dictionary() else emptyList()
         val contactSnapshot=contactNames.toList()
-        keyboard?.setTypingActive(context.isNotEmpty())
+        // Do not call getTextBeforeCursor here. It is a synchronous Binder call
+        // into the host editor and can stall the next touch during rapid typing.
+        // The worker reads the snapshot and applies only the newest result.
         try {
             suggestionWorker.execute {
+                val context=before(connection)
                 val word=LocalSuggestions.lastWord(context)
                 val values=LocalSuggestions.candidates(context,dictionary,wordsEnabled,nextEnabled,emojiEnabled,grammarEnabled,smartReplies,
                     if(learn) learned.matches(word,language) else emptyList(),language,roman).toMutableList()
@@ -662,6 +671,7 @@ class RaabtaInputMethodService : InputMethodService() {
                 ui.post {
                     if(serial != suggestionSequence.get() || generation != editorGeneration || sequence != inputSequence || currentInputConnection !== connection || writingMode.isNotEmpty()) return@post
                     candidateBefore=context; candidateGeneration=generation
+                    keyboard?.setTypingActive(hasTypedSinceStart && context.isNotEmpty())
                     keyboard?.showCandidates(visibleValues)
                 }
             }
@@ -688,7 +698,7 @@ class RaabtaInputMethodService : InputMethodService() {
                 val prefix=if(candidate.emoji && before().lastOrNull()?.isLetter()==true) " " else ""
                 if(EditorCommands.type(connection,prefix+candidate.text) && candidate.emoji && VoicePolicy.allows(editor)) options.usedEmoji(candidate.text)
                 if(!candidate.emoji && canLearn() && LearnedWords.valid(candidate.text)) {
-                    learned.record(candidate.text, options.number("language"), selected = candidate.replace.isNotEmpty())
+                    recordLearnedAsync(candidate.text, options.number("language"), selected = candidate.replace.isNotEmpty())
                     learningBuffer=candidate.text
                 } else learningBuffer=""
                 state.afterCharacter(); keyboard?.updateShift()
@@ -703,7 +713,7 @@ class RaabtaInputMethodService : InputMethodService() {
             // can follow asynchronously; it must never make Space wait on a read.
             val value=learningBuffer
             learningBuffer=""
-            if (canLearn() && LearnedWords.valid(value) && filtered(value)) learned.record(value,options.number("language"))
+            if (canLearn() && LearnedWords.valid(value) && filtered(value)) recordLearnedAsync(value,options.number("language"))
             val time=SystemClock.uptimeMillis()
             if (EditorCommands.type(connection," ")) {
                 spaceTime=time

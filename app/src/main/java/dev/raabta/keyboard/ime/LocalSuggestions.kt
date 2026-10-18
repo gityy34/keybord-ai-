@@ -45,7 +45,12 @@ object LocalSuggestions {
             learned.filter { !it.equals(word, true) }.forEach { result.add(Candidate(it, matchCase(word, it), word)) }
             corrections[lower]?.let { result.add(Candidate(it, matchCase(word, it), word)) }
             val allWords=(dictionary + words).distinct()
-            allWords.asSequence().filter { it.startsWith(lower, true) && !it.equals(word, true) }
+            allWords.asSequence().filter {
+                val matchesPrefix = if (language == 2 && roman) {
+                    it.startsWith(word, true) || romanKey(it).startsWith(romanKey(word))
+                } else it.startsWith(lower, true)
+                matchesPrefix && !it.equals(word, true)
+            }
                 .filter { language != 1 || it.any { c -> c in '\u0600'..'\u06ff' } }
                 .sortedWith(compareBy<String> { priority(lower, it) }.thenBy { romanPenalty(lower,it,language,roman) }.thenBy { kotlin.math.abs(it.length-word.length) }.thenBy { it.length }.thenBy { it.lowercase(Locale.ROOT) })
                 .take(8).forEach { result.add(Candidate(it, matchCase(word, it), word)) }

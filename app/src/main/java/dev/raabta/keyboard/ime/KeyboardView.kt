@@ -50,8 +50,23 @@ sealed interface Key {
 /** Layout constants shared by the IME surface and inset regression tests. */
 internal object KeyboardInsetMetrics {
     const val OUTER_GAP_DP = 8
+    /** The reference keyboard leaves about 13.2% of the display below its last key. */
+    const val REFERENCE_BOTTOM_GAP_RATIO = 0.132f
+
+    /** Legacy calculation kept for callers that only know the navigation inset. */
     fun bottomSpacerPx(density: Float, navigationInsetPx: Int): Int =
         (OUTER_GAP_DP * density + 0.5f).toInt() + navigationInsetPx.coerceAtLeast(0)
+
+    /**
+     * Reserve the reference keyboard's bottom breathing room, including the system
+     * navigation area. The gap is part of the keyboard layout, so resizing changes
+     * the key area above it and never pushes a key below the fixed bottom edge.
+     */
+    fun bottomSpacerPx(density: Float, navigationInsetPx: Int, displayHeightPx: Int): Int {
+        val minimum = bottomSpacerPx(density, navigationInsetPx)
+        val reference = (displayHeightPx.coerceAtLeast(0) * REFERENCE_BOTTOM_GAP_RATIO + 0.5f).toInt()
+        return maxOf(minimum, reference)
+    }
 }
 
 /** Native buttons provide accessibility semantics and avoid a custom text-rendering engine. */
@@ -109,6 +124,7 @@ class KeyboardView @JvmOverloads constructor(
         isClickable = false
         isFocusable = false
     }
+    private var navigationInsetPx = 0
     private val rows = LinearLayout(context)
     private val letterButtons = mutableListOf<Pair<Button, String>>()
     private var shiftButton: Button? = null
@@ -150,15 +166,14 @@ class KeyboardView @JvmOverloads constructor(
         setPadding(context.dp(3), context.dp(KeyboardInsetMetrics.OUTER_GAP_DP), context.dp(3), 0)
         content.orientation = VERTICAL
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        addView(bottomSafeSpacer, LayoutParams(LayoutParams.MATCH_PARENT, context.dp(KeyboardInsetMetrics.OUTER_GAP_DP)))
+        addView(bottomSafeSpacer, LayoutParams(LayoutParams.MATCH_PARENT,
+            KeyboardInsetMetrics.bottomSpacerPx(resources.displayMetrics.density, 0, resources.displayMetrics.heightPixels)))
         setOnApplyWindowInsetsListener { _, insets ->
             val bottom = if (Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.navigationBars()).bottom
             else { @Suppress("DEPRECATION") insets.systemWindowInsetBottom }
+            navigationInsetPx = bottom.coerceAtLeast(0)
             setPadding(context.dp(3), context.dp(KeyboardInsetMetrics.OUTER_GAP_DP), context.dp(3), 0)
-            bottomSafeSpacer.layoutParams = bottomSafeSpacer.layoutParams.apply {
-                height = KeyboardInsetMetrics.bottomSpacerPx(resources.displayMetrics.density, bottom)
-            }
-            bottomSafeSpacer.requestLayout()
+            requestLayout()
             insets
         }
         val header = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL; isBaselineAligned=false }
@@ -686,7 +701,11 @@ class KeyboardView @JvmOverloads constructor(
                 }
                 button.onGlideEnd={
                     val value=glidePath; glidePath=""
-                    if(value.length>1) { onKey(Key.Glide(value)); true } else false
+                    // Require a real cross-key travel before consuming the tap.
+                    // This preserves two-letter swipes while preventing a small
+                    // movement during fast typing from dropping the letter.
+                    val minimumTravel=button.width.toFloat()*0.55f
+                    if(value.length>1 && button.gestureTravelPx>=minimumTravel) { onKey(Key.Glide(value)); true } else false
                 }
             }
         }
@@ -918,12 +937,30 @@ class KeyboardView @JvmOverloads constructor(
         if(preferences.numberRow || (state.mode!=KeyboardMode.LETTERS && options.enabled("symbols_number_row"))) count++
         if((state.mode==KeyboardMode.LETTERS && options.enabled("emoji_row")) || (state.mode!=KeyboardMode.LETTERS && options.enabled("symbols_emoji"))) count++
         val toolbarHeight=context.dp(44)
+        val displayHeight=resources.displayMetrics.heightPixels
+        val bottomGap=KeyboardInsetMetrics.bottomSpacerPx(resources.displayMetrics.density,navigationInsetPx,displayHeight)
+        val workspace=panel!=null || writingPanel!=null || recorder.isVisible || emojiPanel!=null
+        // The reference gap protects the actual keyboard rows. Full-screen tool
+        // pages have no key row at the bottom, so they can use that space for their
+        // controls; resize/edit modes keep the gap because keys remain visible.
+        val reserveBottomGap=!workspace || settingsPage=="Resize" ||
+            (writingPanel!=null && writingKeyboardVisible) || (emojiPanel!=null && rows.isVisible)
+        // Keep the spacer measured on tool pages so switching between keyboard
+        // and tools does not jump the IME window; it is simply non-interactive
+        // and visually hidden when no key row needs protection.
+        bottomSafeSpacer.visibility=if(reserveBottomGap) View.VISIBLE else View.INVISIBLE
+        if (bottomSafeSpacer.layoutParams.height != bottomGap) {
+            bottomSafeSpacer.layoutParams = bottomSafeSpacer.layoutParams.apply { height=bottomGap }
+        }
         // Suggestions occupy the same fixed-height center strip as the toolbar;
         // they must not add a second row or shrink the key area.
         val normal=count*(defaultKey+context.dp(6))+toolbarHeight
         val system=if(MeasureSpec.getMode(heightMeasureSpec)==MeasureSpec.UNSPECIFIED) Int.MAX_VALUE else (MeasureSpec.getSize(heightMeasureSpec)-paddingTop-paddingBottom).coerceAtLeast(0)
-        val area=minOf(normal,system)
-        val workspace=panel!=null || writingPanel!=null || recorder.isVisible || emojiPanel!=null
+        // Keep the bottom gap outside the usable keyboard area. When the height
+        // scale grows, the IME window can move upward while this bottom edge stays
+        // fixed; when it shrinks, the keys never drift into the system area.
+        val usable=(system-(if(reserveBottomGap) bottomGap else 0)).coerceAtLeast(0)
+        val area=minOf(normal,usable)
         content.layoutParams.height=if(workspace) area else LayoutParams.WRAP_CONTENT
         val message=if(voiceMessage.isVisible) context.dp(if(landscape) 48 else 64) else 0
         voiceMessage.layoutParams.height=if(message>0) message else LayoutParams.WRAP_CONTENT

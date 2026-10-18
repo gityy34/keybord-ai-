@@ -25,7 +25,11 @@ class GestureKeyButton(context:Context) : KeyButton(context) {
     var tapSlop=ViewConfiguration.get(context).scaledTouchSlop.toFloat()
     private val handler=Handler(Looper.getMainLooper())
     private var x=0f; private var y=0f; private var lastX=0f
+    private var lastRawX=0f; private var lastRawY=0f
+    private var travelPx=0f
     private var consumed=false; private var moved=false; private var stationaryFired=false
+    /** Travel distance is exposed so a slight tap movement cannot become a glide. */
+    val gestureTravelPx: Float get() = travelPx
     private val held=Runnable { if(isPressed && !moved && onSymbol!=null) { consumed=true; onSymbol?.invoke(); onPreview?.invoke(false) } }
     private val stationaryHold=Runnable { if(isPressed && !moved && onStationaryHold!=null) {
         consumed=true; stationaryFired=true; onStationaryHold?.invoke(); onPreview?.invoke(false)
@@ -33,13 +37,15 @@ class GestureKeyButton(context:Context) : KeyButton(context) {
     override fun onTouchEvent(event:MotionEvent):Boolean {
         when(event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                cancelGesture(); x=event.x; lastX=x; y=event.y; consumed=false; moved=false; stationaryFired=false; isPressed=true
+                cancelGesture(); x=event.x; lastX=x; y=event.y; lastRawX=event.rawX; lastRawY=event.rawY; travelPx=0f; consumed=false; moved=false; stationaryFired=false; isPressed=true
                 onPreview?.invoke(true); onGlideMove?.invoke(event.rawX,event.rawY)
                 if(onSymbol!=null) handler.postDelayed(held,holdDuration)
                 if(onStationaryHold!=null && stationaryHoldMillis>0) handler.postDelayed(stationaryHold,stationaryHoldMillis)
             }
             MotionEvent.ACTION_MOVE -> {
                 if(stationaryFired) return true
+                travelPx += kotlin.math.hypot(event.rawX-lastRawX,event.rawY-lastRawY)
+                lastRawX=event.rawX; lastRawY=event.rawY
                 if(kotlin.math.abs(event.x-x)>tapSlop || kotlin.math.abs(event.y-y)>tapSlop) {
                     moved=true; handler.removeCallbacks(held); handler.removeCallbacks(stationaryHold); onPreview?.invoke(false)
                 }
@@ -56,6 +62,8 @@ class GestureKeyButton(context:Context) : KeyButton(context) {
             }
             MotionEvent.ACTION_UP -> {
                 handler.removeCallbacks(held); handler.removeCallbacks(stationaryHold); isPressed=false; onPreview?.invoke(false)
+                // A genuine glide should cross a meaningful part of the key. This
+                // keeps a rapid tap with a few pixels of hand movement a normal tap.
                 val glide=if(!consumed && moved) onGlideEnd?.invoke()==true else false
                 // A small movement over touch-slop is still a tap when no valid
                 // multi-key glide was produced. The old branch dropped that tap,
@@ -70,7 +78,7 @@ class GestureKeyButton(context:Context) : KeyButton(context) {
         return true
     }
     override fun performClick():Boolean = super.performClick()
-    fun cancelGesture() { handler.removeCallbacks(held); handler.removeCallbacks(stationaryHold); isPressed=false; consumed=true; onPreview?.invoke(false); onCancel?.invoke() }
+    fun cancelGesture() { handler.removeCallbacks(held); handler.removeCallbacks(stationaryHold); isPressed=false; consumed=true; travelPx=0f; onPreview?.invoke(false); onCancel?.invoke() }
     override fun onDetachedFromWindow() { cancelGesture(); super.onDetachedFromWindow() }
 }
 
